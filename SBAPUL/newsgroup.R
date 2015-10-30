@@ -2,7 +2,7 @@ libs <- c("tm", "e1071")
 install.packages(libs, dependencies=TRUE)
 lapply(libs, require, character.only=TRUE)
 
-setwd("./UCI data/20news-bydate.tar/20news-bydate")
+setwd("C:/Users/DongWei/Documents/Projects/data-scooping/data/20news-bydate")
 
 
 
@@ -23,20 +23,6 @@ dongwei.cleanData <- function(dataCorpus) {
   return(dataCorpus)
 }
 
-
-dongwei.convertClassStringToProbability <- function(dataClass) {
-  output <- rep(0, length(dataClass))
-
-  for (i in seq(from=1, to=length(dataClass), by=1)){
-    if (dataClass[i] == "positive") {
-      output[i] <- 1
-    }
-  }
-
-  return(output)
-}
-
-
 dongwei.setCorpusDocumentId <- function(startNum, dataCorpus) {
   for (i in seq(from=1, to=length(dataCorpus), by=1)){
     dataCorpus[[i]]$meta$id <- startNum + i
@@ -45,6 +31,13 @@ dongwei.setCorpusDocumentId <- function(startNum, dataCorpus) {
   return(dataCorpus)
 }
 
+dongwei.labelClassToId <- function(stringClassName, dataCorpus) {
+  classes <- rep(stringClassName, length(dataCorpus))
+  classes <- data.frame(classes)
+  
+  row.names(classes) <- dongwei.getCorpusDocumentIdToVector(dataCorpus)
+  return(classes)
+}
 
 dongwei.getCorpusDocumentIdToVector <- function(dataCorpus) {
   output <- c()
@@ -57,14 +50,6 @@ dongwei.getCorpusDocumentIdToVector <- function(dataCorpus) {
 }
 
 
-dongwei.labelClassToId <- function(stringClassName, dataCorpus) {
-  classes <- rep(stringClassName, length(dataCorpus))
-  classes <- data.frame(classes)
-
-  row.names(classes) <- dongwei.getCorpusDocumentIdToVector(dataCorpus)
-  return(classes)
-}
-
 
 
 
@@ -74,7 +59,7 @@ dongwei.labelClassToId <- function(stringClassName, dataCorpus) {
 ################################################
 ## PS: Positive set, subcategory: comp.graphics
 data.PS.raw <- Corpus(
-                  DirSource(directory="C:\Users\DongWei\Documents\Projects\SBAPUL\UCI data\breast-cancer-wisconsin\breast-cancer-wisconsin.data", encoding="UTF-8"),
+                  DirSource(directory="positive", encoding="UTF-8"),
                   readerControl=list(reader=readPlain,language="en"))
 
 ## NS: Negative set, note: "comp.graphics" has been moved out of "negative" folder
@@ -171,17 +156,17 @@ class.train.US      <- rbind(class.NS.train,     class.PS.train.unlabelled)
 label.train.US      <- rbind(label.NS.train,     label.PS.train.unlabelled)
 
 
-class.train    <- class.train[sort(rownames(class.train)),,drop=FALSE]
-label.train    <- label.train[sort(rownames(label.train)),,drop=FALSE]
-class.train.US <- class.train[sort(rownames(class.train.US)),,drop=FALSE]
-label.train.US <- label.train[sort(rownames(label.train.US)),,drop=FALSE]
+class.train.all    <- class.train.all[sort(rownames(class.train.all)),,drop=FALSE]
+label.train.all    <- label.train.all[sort(rownames(label.train.all)),,drop=FALSE]
+class.train.US <- class.train.US[sort(rownames(class.train.US)),,drop=FALSE]
+label.train.US <- label.train.US[sort(rownames(label.train.US)),,drop=FALSE]
 
 
 
 ################################################
 ####    Create document term matrix
 ################################################
-tdm.train.all <- t(TermDocumentMatrix(data.train))
+tdm.train.all <- t(TermDocumentMatrix(data.train.all))
 tdm.train.all <- removeSparseTerms(tdm.train.all, 0.9)
 tdm.train.all <- tdm.train.all[sort(rownames(tdm.train.all)),,drop=FALSE]
 
@@ -199,15 +184,12 @@ tdm.test <- tdm.test[sort(rownames(tdm.test)),,drop=FALSE]
 ####    Run Naive-Bayes
 ################################################
 #  Laplace = 0.1 is taken from [Bing Liu, 2003]
-#label.train.probability <- dongwei.convertClassStringToProbability(label.train)
 tdm.train.all.matrix        <- as.matrix(tdm.train.all)
 tdm.train.US.matrix         <- as.matrix(tdm.train.US)
 
-model <- naiveBayes(tdm.train.all.matrix, class.train, laplace=0.1)
+model <- naiveBayes(tdm.train.all.matrix, class.train.all, laplace=0.1)
 
 
 testResult1 <- predict(model, tdm.train.US.matrix, type="raw")
 testResult2 <- predict(model, tdm.train.US.matrix)
-correctResults <- as.factor(class.train.US)
-
 

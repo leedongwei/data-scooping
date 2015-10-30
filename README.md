@@ -1,6 +1,6 @@
 # data-scooping: flyweight data mining
 <img src="http://i.imgur.com/AfgkjCf.jpg"><br>
-<h3 style="margin-top:0; padding-top:0;">But data mining is so fly</h3>
+<h3 style="margin-top:0; padding-top:0;">... but data mining is so fly</h3>
 
 <br>
 
