@@ -34,7 +34,14 @@ bcw.headers <- c(
 )
 names(bcw) <- bcw.headers
 
-## V6 has missing values.
+
+## bcw has non-unique patient IDs
+## We will replace all IDs to ensure uniqueness
+bcw$id <- 1:length(bcw$id)
+
+
+## bcw$V6 has missing values
+## We will replace them with the mean of V6
 index <- which(bcw$V6 %in% "?")
 
 ## Convert factor to numeric
@@ -49,7 +56,7 @@ for (i in 1:length(bcw$V6)) {
 V6.mean <- temp / length(bcw$V6)
 
 
-## Replace missing values with mean
+## Replace missing V6 values with mean
 bcw$V6[index] <- V6.mean
 
 ################################################
@@ -231,8 +238,8 @@ for (i in 1:nrow(temp)) {
 }
 
 ## Clean up Global Env
-# rm(bcw.trn.roc.POSITIVE, bcw.trn.roc.NEGATIVE, bcw.trn.roc.PS, bcw.trn.roc.US)
-# rm(bcw.trn.spy.POSITIVE, bcw.trn.spy.NEGATIVE, bcw.trn.spy.PS, bcw.trn.spy.US)
+rm(bcw.trn.roc.POSITIVE, bcw.trn.roc.NEGATIVE, bcw.trn.roc.PS, bcw.trn.roc.US)
+rm(bcw.trn.spy.POSITIVE, bcw.trn.spy.NEGATIVE, bcw.trn.spy.PS, bcw.trn.spy.US)
 
 
 ################################################
