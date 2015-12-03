@@ -65,11 +65,11 @@ bcw.trn.positive <- subset(bcw.trn, class=="4")
 bcw.trn.negative <- subset(bcw.trn, class=="2")
 
 ## Value of g is taken from page 1581 of this paper
-g = 0.15
+cnst.g <- 0.15
 temp <- createDataPartition(
                     bcw.trn.positive$class, 
                     times = 1,
-                    p = g,
+                    p = cnst.g,
                     list = FALSE)
 
 ## Set up PS and US
@@ -94,17 +94,17 @@ bcw.trn.spy.PS$isSpy <- FALSE
 bcw.trn.spy.US$isSpy <- FALSE
 
 ## Value of s is taken from page 3 of Liu, Dai, Li, Lee, Yu (2003)
-s = 0.15
+cnst.s <- 0.15
 temp <- createDataPartition(
                     bcw.trn.spy.PS$class, 
                     times = 1,
-                    p = s,
+                    p = cnst.s,
                     list = FALSE)
 
 ## Put spies into US
-temp <- bcw.trn.spy.PS[temp, ]
-temp$isSpy <- TRUE
-bcw.trn.spy.US <- rbind(temp,bcw.trn.spy.US)
+temp.PS <- bcw.trn.spy.PS[temp, ]
+temp.PS$isSpy <- TRUE
+bcw.trn.spy.US <- rbind(temp.PS,bcw.trn.spy.US)
 bcw.trn.spy.PS <- bcw.trn.spy.PS[-temp, ]
 
 bcw.trn.spy.PS$spyLabel <- 4
@@ -136,11 +136,11 @@ for (i in 1:35) {
 
 ## Probability threshold
 index <- which(bcw.trn.spy.US$isSpy, TRUE)
-th <- min(bcw.trn.spy.US$Pr[index])
+cnst.th <- min(bcw.trn.spy.US$Pr[index])
 
-## RN documents <- Pr < th
-bcw.trn.spy.NEGATIVE <- bcw.trn.spy.US[bcw.trn.spy.US$Pr < th, ]
-bcw.trn.spy.POSITIVE <- bcw.trn.spy.US[bcw.trn.spy.US$Pr >= th, ]
+## RN documents <- Pr < cnst.th
+bcw.trn.spy.NEGATIVE <- bcw.trn.spy.US[bcw.trn.spy.US$Pr < cnst.th, ]
+bcw.trn.spy.POSITIVE <- bcw.trn.spy.US[bcw.trn.spy.US$Pr >= cnst.th, ]
 
 ## Convert factor to numeric for later use
 
@@ -178,7 +178,6 @@ BcwRocchioVectorBuilder <- function(DF1, DF2) {
 }
 
 BcwRocchioClassifer <- function(DF.row, vector1, vector2) {
-  
   ## Remove non-significant columns
   DF.row <- DF.row[ , bcw.featureHeaders]
   
@@ -233,17 +232,17 @@ bcw.trn.step1.US <- subset(bcw.trn.US, !(bcw.trn.US$id %in% bcw.trn.step1.NS$id)
 ################################################
 rm(bcw.trn.roc.POSITIVE, bcw.trn.roc.NEGATIVE, bcw.trn.roc.PS, bcw.trn.roc.US)
 rm(bcw.trn.spy.POSITIVE, bcw.trn.spy.NEGATIVE, bcw.trn.spy.PS, bcw.trn.spy.US)
-rm(index, libs, V6.mean, nbc, rocchio.posVector, rocchio.negVector)
+rm(index, libs, V6.mean, nbc, rocchio.posVector, rocchio.negVector, temp.PS)
 
 
 
 ################################################
 ####    Clustering
 ################################################
-t = 30
-m = floor(t * nrow(bcw.trn.step1.NS) / (nrow(bcw.trn.step1.US) + nrow(bcw.trn.step1.NS)))
+cnst.t = 30
+cnst.m = floor(cnst.t * nrow(bcw.trn.step1.NS) / (nrow(bcw.trn.step1.US) + nrow(bcw.trn.step1.NS)))
 
-bcw.trn.step1.NS.fit <- kmeans(bcw.trn.step1.NS[, bcw.featureHeaders], m)
+bcw.trn.step1.NS.fit <- kmeans(bcw.trn.step1.NS[, bcw.featureHeaders], cnst.m)
 
 ## Label data with cluster number
 bcw.trn.step1.NS <- data.frame(bcw.trn.step1.NS, bcw.trn.step1.NS.fit$cluster)
@@ -258,7 +257,7 @@ temp <- matrix(0, ncol = 10, nrow = 0)
 bcw.trn.step1.p.k <- data.frame(temp)
 bcw.trn.step1.n.k <- data.frame(temp)
 
-for (k in 1:m) {
+for (k in 1:cnst.m) {
   cluster.k <- subset(bcw.trn.step1.NS, cluster==k)
   
   p.k <- BcwRocchioVectorBuilder(bcw.trn.step1.PS, cluster.k)
@@ -280,9 +279,9 @@ names(bcw.trn.step1.n.k) <- c("k", bcw.featureHeaders)
 ####    Similarity Weight Generation
 ################################################
 # Take value of 't' from above, t <- 30
-r = floor(t * nrow(bcw.trn.step1.US) / (nrow(bcw.trn.step1.NS) + nrow(bcw.trn.step1.US)))
+cnst.r = floor(cnst.t * nrow(bcw.trn.step1.US) / (nrow(bcw.trn.step1.NS) + nrow(bcw.trn.step1.US)))
 
-bcw.trn.step1.US.fit <- kmeans(bcw.trn.step1.US[, bcw.featureHeaders], r)
+bcw.trn.step1.US.fit <- kmeans(bcw.trn.step1.US[, bcw.featureHeaders], cnst.r)
 
 ## Label data with cluster number
 bcw.trn.step1.US <- data.frame(bcw.trn.step1.US, bcw.trn.step1.US.fit$cluster)
@@ -326,9 +325,8 @@ bcw.trn.localSPUL.US$m.plus  <- -1
 bcw.trn.localSPUL.US$m.minus <- -1
 
 ## For each cluster in US
-for (j in 1:r) {
-  temp <- subset(bcw.trn.localSPUL.US, cluster==j)
-  cluster.j <- temp[, bcw.featureHeaders]
+for (j in 1:cnst.r) {
+  cluster.j <- subset(bcw.trn.localSPUL.US, cluster==j)
   
   cluster.size <- nrow(cluster.j)
   cluster.lp <- 0
@@ -339,25 +337,25 @@ for (j in 1:r) {
     cluster.j.pk <- numeric(0)
     cluster.j.nk <- numeric(0)
     
-    ## Run each document with every positive vector
+    ## Run this document with every positive vector
     for (k in 1:nrow(bcw.trn.step1.p.k)) { 
       temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.p.k[k, ])
       cluster.j.pk <- c(cluster.j.pk, temp)
     }
     
-    ## Run each document with every negative vector
+    ## Run this document with every negative vector
     for (k in 1:nrow(bcw.trn.step1.n.k)) { 
       temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.n.k[k, ])
       cluster.j.nk <- c(cluster.j.nk, temp)
     }
     
+    ## Count number of documents that are closer to positive/negative prototypes
     if (max(cluster.j.pk) > max(cluster.j.nk)) {
       cluster.lp <- cluster.lp + 1
     } else {
       cluster.ln <- cluster.ln + 1
     }
   }
-  
   
   ## Calculate m+ for entire cluster
   bcw.trn.localSPUL.US[bcw.trn.localSPUL.US$cluster==j, ]$m.plus  <- cluster.lp / cluster.size
@@ -366,3 +364,68 @@ for (j in 1:r) {
   bcw.trn.localSPUL.US[bcw.trn.localSPUL.US$cluster==j, ]$m.minus <- cluster.ln / cluster.size
 }
 
+# bcw.trn.localSPUL.US
+# bcw.trn.localSPUL.PS
+# bcw.trn.localSPUL.NS
+
+
+
+################################################
+####    Global Weight Generation
+################################################
+## Copy data
+bcw.trn.globalSPUL.US <- bcw.trn.step1.US
+bcw.trn.globalSPUL.PS <- bcw.trn.step1.PS
+bcw.trn.globalSPUL.NS <- bcw.trn.step1.NS
+
+## Set up Local SPUL weights
+bcw.trn.globalSPUL.PS$m.plus  <- 1
+bcw.trn.globalSPUL.PS$m.minus <- 0
+
+bcw.trn.globalSPUL.NS$m.plus  <- 0
+bcw.trn.globalSPUL.NS$m.minus <- 1
+
+bcw.trn.globalSPUL.US$m.plus  <- -1
+bcw.trn.globalSPUL.US$m.minus <- -1
+
+## For each cluster in US
+for (j in 1:cnst.r) {
+  cluster.j <- subset(bcw.trn.globalSPUL.US, cluster==j)
+  
+  ## For each document in cluster
+  for (i in 1:nrow(cluster.j)) {
+    cluster.j.pk <- numeric(0)
+    cluster.j.nk <- numeric(0)
+    
+    ## Run this document with every positive vector
+    for (k in 1:nrow(bcw.trn.step1.p.k)) { 
+      temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.p.k[k, ])
+      cluster.j.pk <- c(cluster.j.pk, temp)
+    }
+    
+    ## Run this document with every negative vector
+    for (k in 1:nrow(bcw.trn.step1.n.k)) { 
+      temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.n.k[k, ])
+      cluster.j.nk <- c(cluster.j.nk, temp)
+    }
+    
+    ## Calculate m+ for this document, save in globalSPUL
+    temp <- sum(cluster.j.pk) / (sum(cluster.j.pk) + sum(cluster.j.nk))
+    bcw.trn.globalSPUL.US[bcw.trn.globalSPUL.US$id == cluster.j[i, ]$id, ]$m.plus <- temp
+    
+    ## Calculate m- for this document, save in globalSPUL
+    temp <- sum(cluster.j.nk) / (sum(cluster.j.pk) + sum(cluster.j.nk))
+    bcw.trn.globalSPUL.US[bcw.trn.globalSPUL.US$id == cluster.j[i, ]$id, ]$m.minus <- temp
+  }
+}
+
+# bcw.trn.globalSPUL.PS
+# bcw.trn.globalSPUL.NS
+# bcw.trn.globalSPUL.US
+
+
+
+################################################
+####    Clean up Global Env
+################################################
+rm(cluster.j, cluster.ln, cluster.lp, cluster.j.nk, cluster.j.pk, cluster.size)
