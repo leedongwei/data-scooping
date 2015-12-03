@@ -234,6 +234,9 @@ rm(bcw.trn.roc.POSITIVE, bcw.trn.roc.NEGATIVE, bcw.trn.roc.PS, bcw.trn.roc.US)
 rm(bcw.trn.spy.POSITIVE, bcw.trn.spy.NEGATIVE, bcw.trn.spy.PS, bcw.trn.spy.US)
 rm(index, libs, V6.mean, nbc, rocchio.posVector, rocchio.negVector, temp.PS)
 
+bcw.trn.step1.NS$rocLabel <- NULL
+bcw.trn.step1.NS$spyLabel <- NULL
+
 
 
 ################################################
@@ -364,9 +367,9 @@ for (j in 1:cnst.r) {
   bcw.trn.localSPUL.US[bcw.trn.localSPUL.US$cluster==j, ]$m.minus <- cluster.ln / cluster.size
 }
 
-# bcw.trn.localSPUL.US
-# bcw.trn.localSPUL.PS
-# bcw.trn.localSPUL.NS
+bcw.trn.localSPUL.US$cluster <- NULL
+bcw.trn.localSPUL.NS$cluster <- NULL
+bcw.trn.localSPUL <- rbind(bcw.trn.localSPUL.PS, bcw.trn.localSPUL.NS, bcw.trn.localSPUL.US)
 
 
 
@@ -422,6 +425,11 @@ for (j in 1:cnst.r) {
 # bcw.trn.globalSPUL.PS
 # bcw.trn.globalSPUL.NS
 # bcw.trn.globalSPUL.US
+
+
+bcw.trn.globalSPUL.US$cluster <- NULL
+bcw.trn.globalSPUL.NS$cluster <- NULL
+bcw.trn.globalSPUL <- rbind(bcw.trn.globalSPUL.PS, bcw.trn.globalSPUL.NS, bcw.trn.globalSPUL.US)
 
 
 
