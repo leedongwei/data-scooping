@@ -274,3 +274,95 @@ rm(cluster.k, p.k, n.k)
 names(bcw.trn.step1.p.k) <- c("k", bcw.featureHeaders)
 names(bcw.trn.step1.n.k) <- c("k", bcw.featureHeaders)
 
+
+
+################################################
+####    Similarity Weight Generation
+################################################
+# Take value of 't' from above, t <- 30
+r = floor(t * nrow(bcw.trn.step1.US) / (nrow(bcw.trn.step1.NS) + nrow(bcw.trn.step1.US)))
+
+bcw.trn.step1.US.fit <- kmeans(bcw.trn.step1.US[, bcw.featureHeaders], r)
+
+## Label data with cluster number
+bcw.trn.step1.US <- data.frame(bcw.trn.step1.US, bcw.trn.step1.US.fit$cluster)
+bcw.trn.step1.US <- rename(bcw.trn.step1.US, c("bcw.trn.step1.US.fit.cluster" = "cluster"))
+
+
+
+################################################
+####    Weight Generation
+################################################
+BcwSimilarityValue <- function(DF.row, prototype1) {
+  DF.row <- DF.row[ , bcw.featureHeaders]
+  prototype1 <- prototype1[ , bcw.featureHeaders]
+    
+  norma.x   <- apply(DF.row, 1, function(x){sqrt(sum(x^2))})
+  norma.p.k <- apply(prototype1, 1, function(x){sqrt(sum(x^2))})
+  
+  sim <- sum((DF.row * prototype1) / (norma.x * norma.p.k))
+  
+  return(sim)
+}
+
+
+
+################################################
+####    Local Weight Generation
+################################################
+## Copy data
+bcw.trn.localSPUL.US <- bcw.trn.step1.US
+bcw.trn.localSPUL.PS <- bcw.trn.step1.PS
+bcw.trn.localSPUL.NS <- bcw.trn.step1.NS
+
+## Set up Local SPUL weights
+bcw.trn.localSPUL.PS$m.plus  <- 1
+bcw.trn.localSPUL.PS$m.minus <- 0
+
+bcw.trn.localSPUL.NS$m.plus  <- 0
+bcw.trn.localSPUL.NS$m.minus <- 1
+
+bcw.trn.localSPUL.US$m.plus  <- -1
+bcw.trn.localSPUL.US$m.minus <- -1
+
+## For each cluster in US
+for (j in 1:r) {
+  temp <- subset(bcw.trn.localSPUL.US, cluster==j)
+  cluster.j <- temp[, bcw.featureHeaders]
+  
+  cluster.size <- nrow(cluster.j)
+  cluster.lp <- 0
+  cluster.ln <- 0
+  
+  ## For each document in cluster
+  for (i in 1:nrow(cluster.j)) {
+    cluster.j.pk <- numeric(0)
+    cluster.j.nk <- numeric(0)
+    
+    ## Run each document with every positive vector
+    for (k in 1:nrow(bcw.trn.step1.p.k)) { 
+      temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.p.k[k, ])
+      cluster.j.pk <- c(cluster.j.pk, temp)
+    }
+    
+    ## Run each document with every negative vector
+    for (k in 1:nrow(bcw.trn.step1.n.k)) { 
+      temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.n.k[k, ])
+      cluster.j.nk <- c(cluster.j.nk, temp)
+    }
+    
+    if (max(cluster.j.pk) > max(cluster.j.nk)) {
+      cluster.lp <- cluster.lp + 1
+    } else {
+      cluster.ln <- cluster.ln + 1
+    }
+  }
+  
+  
+  ## Calculate m+ for entire cluster
+  bcw.trn.localSPUL.US[bcw.trn.localSPUL.US$cluster==j, ]$m.plus  <- cluster.lp / cluster.size
+  
+  ## Calculate m- for entire cluster
+  bcw.trn.localSPUL.US[bcw.trn.localSPUL.US$cluster==j, ]$m.minus <- cluster.ln / cluster.size
+}
+
