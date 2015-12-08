@@ -16,7 +16,7 @@ setwd("C:/Users/DongWei/Documents/Projects/data-scooping/data/breast-cancer-wisc
 ################################################
 bcw <- read.table("breast-cancer-wisconsin.data", sep=",")
 bcw.headers <- c( "id", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "class")
-bcw.featureHeaders <- c("V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9")
+bcw.features <- c("V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9")
 names(bcw) <- bcw.headers
 
 
@@ -38,11 +38,12 @@ for (i in 1:length(bcw$V6)) {
     temp <- temp + as.numeric(bcw$V6[i])
   }
 }
-V6.mean <- temp / length(bcw$V6)
+V6.mean <- floor(temp / length(bcw$V6))
 
 
 ## Replace missing V6 values with mean
 bcw$V6[index] <- V6.mean
+bcw$V6 <- as.integer(bcw$V6)
 
 
 
@@ -79,12 +80,12 @@ bcw.trn.US <- rbind(bcw.trn.US, bcw.trn.negative)
 
 ## Delete variables that are never again used
 ## Prevents confusion in Global Env
-rm(bcw.trn.positive, bcw.trn.negative)
+#rm(bcw.trn.positive, bcw.trn.negative)
 
 
 
 ################################################
-####    Spy-EM
+####    Spy-Technique
 ################################################
 ## Copying data
 bcw.trn.spy.PS <- bcw.trn.PS
@@ -122,8 +123,8 @@ nbc <- naiveBayes(
 ## 35 is a randomly chosen number that is sufficiently large enough
 ## because results converge quite fast for BCW data set
 for (i in 1:35) {
-  bcw.trn.spy.US$spyLabel <- predict(nbc, bcw.trn.spy.US[, 2:10])
-  temp <- predict(nbc, bcw.trn.spy.US[, 2:10], type="raw")
+  bcw.trn.spy.US$spyLabel <- predict(nbc, bcw.trn.spy.US[, bcw.features])
+  temp <- predict(nbc, bcw.trn.spy.US[, bcw.features], type="raw")
   bcw.trn.spy.US$Pr  <- temp[,1]
   bcw.trn.spy.US$PrN <- temp[,2]
   
@@ -143,10 +144,14 @@ bcw.trn.spy.NEGATIVE <- bcw.trn.spy.US[bcw.trn.spy.US$Pr < cnst.th, ]
 bcw.trn.spy.POSITIVE <- bcw.trn.spy.US[bcw.trn.spy.US$Pr >= cnst.th, ]
 
 ## Convert factor to numeric for later use
-
-## Convert factor to numeric
 bcw.trn.spy.NEGATIVE$spyLabel <- as.numeric(levels(bcw.trn.spy.NEGATIVE$spyLabel))[bcw.trn.spy.NEGATIVE$spyLabel]
 bcw.trn.spy.POSITIVE$spyLabel <- as.numeric(levels(bcw.trn.spy.POSITIVE$spyLabel))[bcw.trn.spy.POSITIVE$spyLabel]
+
+## Save for later use
+bcw.trn.spy.PS$Pr <- 1
+bcw.trn.spy.PS$PrN <- 0
+bcw.trn.spy.NS <- bcw.trn.spy.NEGATIVE
+bcw.trn.spy.US <- bcw.trn.spy.POSITIVE
 
 
 
@@ -162,8 +167,8 @@ BcwRocchioVectorBuilder <- function(DF1, DF2) {
   beta <- 4
   
   ## Remove non-significant columns (e.g. id, class, rocLabel)
-  DF1 <- DF1[ , bcw.featureHeaders]
-  DF2 <- DF2[ , bcw.featureHeaders]
+  DF1 <- DF1[ , bcw.features]
+  DF2 <- DF2[ , bcw.features]
   
   norma.d.1 <- apply(DF1, 1, function(x){x/sqrt(sum(x^2))})
   DF1.size <- nrow(DF1)
@@ -179,7 +184,7 @@ BcwRocchioVectorBuilder <- function(DF1, DF2) {
 
 BcwRocchioClassifer <- function(DF.row, vector1, vector2) {
   ## Remove non-significant columns
-  DF.row <- DF.row[ , bcw.featureHeaders]
+  DF.row <- DF.row[ , bcw.features]
   
   r1 <- sum(vector1 * DF.row)
   r2 <- sum(vector2 * DF.row)
@@ -230,9 +235,9 @@ bcw.trn.step1.US <- subset(bcw.trn.US, !(bcw.trn.US$id %in% bcw.trn.step1.NS$id)
 ################################################
 ####    Clean up Global Env
 ################################################
-rm(bcw.trn.roc.POSITIVE, bcw.trn.roc.NEGATIVE, bcw.trn.roc.PS, bcw.trn.roc.US)
-rm(bcw.trn.spy.POSITIVE, bcw.trn.spy.NEGATIVE, bcw.trn.spy.PS, bcw.trn.spy.US)
-rm(index, libs, V6.mean, nbc, rocchio.posVector, rocchio.negVector, temp.PS)
+#rm(bcw.trn.roc.POSITIVE, bcw.trn.roc.NEGATIVE) #, bcw.trn.roc.PS, bcw.trn.roc.US)   USED FOR Roc-SVM
+#rm(bcw.trn.spy.POSITIVE, bcw.trn.spy.NEGATIVE) #, bcw.trn.spy.PS, bcw.trn.spy.US)   USED FOR Spy-EM
+#rm(index, libs, V6.mean, nbc, rocchio.posVector, rocchio.negVector, temp.PS)
 
 bcw.trn.step1.NS$rocLabel <- NULL
 bcw.trn.step1.NS$spyLabel <- NULL
@@ -245,7 +250,7 @@ bcw.trn.step1.NS$spyLabel <- NULL
 cnst.t = 30
 cnst.m = floor(cnst.t * nrow(bcw.trn.step1.NS) / (nrow(bcw.trn.step1.US) + nrow(bcw.trn.step1.NS)))
 
-bcw.trn.step1.NS.fit <- kmeans(bcw.trn.step1.NS[, bcw.featureHeaders], cnst.m)
+bcw.trn.step1.NS.fit <- kmeans(bcw.trn.step1.NS[, bcw.features], cnst.m)
 
 ## Label data with cluster number
 bcw.trn.step1.NS <- data.frame(bcw.trn.step1.NS, bcw.trn.step1.NS.fit$cluster)
@@ -271,10 +276,10 @@ for (k in 1:cnst.m) {
   n.k <- c(k, n.k)
   bcw.trn.step1.n.k <- rbind(bcw.trn.step1.n.k, n.k)
 }
-rm(cluster.k, p.k, n.k)
+#rm(cluster.k, p.k, n.k)
 
-names(bcw.trn.step1.p.k) <- c("k", bcw.featureHeaders)
-names(bcw.trn.step1.n.k) <- c("k", bcw.featureHeaders)
+names(bcw.trn.step1.p.k) <- c("k", bcw.features)
+names(bcw.trn.step1.n.k) <- c("k", bcw.features)
 
 
 
@@ -284,7 +289,7 @@ names(bcw.trn.step1.n.k) <- c("k", bcw.featureHeaders)
 # Take value of 't' from above, t <- 30
 cnst.r = floor(cnst.t * nrow(bcw.trn.step1.US) / (nrow(bcw.trn.step1.NS) + nrow(bcw.trn.step1.US)))
 
-bcw.trn.step1.US.fit <- kmeans(bcw.trn.step1.US[, bcw.featureHeaders], cnst.r)
+bcw.trn.step1.US.fit <- kmeans(bcw.trn.step1.US[, bcw.features], cnst.r)
 
 ## Label data with cluster number
 bcw.trn.step1.US <- data.frame(bcw.trn.step1.US, bcw.trn.step1.US.fit$cluster)
@@ -296,8 +301,8 @@ bcw.trn.step1.US <- rename(bcw.trn.step1.US, c("bcw.trn.step1.US.fit.cluster" = 
 ####    Weight Generation
 ################################################
 BcwSimilarityValue <- function(DF.row, prototype1) {
-  DF.row <- DF.row[ , bcw.featureHeaders]
-  prototype1 <- prototype1[ , bcw.featureHeaders]
+  DF.row <- DF.row[ , bcw.features]
+  prototype1 <- prototype1[ , bcw.features]
     
   norma.x   <- apply(DF.row, 1, function(x){sqrt(sum(x^2))})
   norma.p.k <- apply(prototype1, 1, function(x){sqrt(sum(x^2))})
@@ -436,4 +441,162 @@ bcw.trn.globalSPUL <- rbind(bcw.trn.globalSPUL.PS, bcw.trn.globalSPUL.NS, bcw.tr
 ################################################
 ####    Clean up Global Env
 ################################################
-rm(cluster.j, cluster.ln, cluster.lp, cluster.j.nk, cluster.j.pk, cluster.size)
+#rm(cluster.j, cluster.ln, cluster.lp, cluster.j.nk, cluster.j.pk, cluster.size)
+
+
+
+################################################
+####    Build SVM
+################################################
+
+svmp <- bcw.trn.globalSPUL.PS
+svmu <- bcw.trn.globalSPUL.US
+svmn <- bcw.trn.globalSPUL.NS
+
+
+bcw.svm.s.positive <- rbind(svmp, svmu)
+bcw.svm.s.negative <- rbind(svmn, svmu)
+bcw.svm.s.star     <- rbind(svmp, svmn)
+
+
+
+# SVMglobalSPUL
+# SVMlocalSPUL
+
+
+
+
+################################################
+####    Spy-EM
+################################################
+## Put Spy documents back in PS
+bcw.trn.SEM.PS <- rbind(bcw.trn.spy.PS, 
+                        subset(bcw.trn.spy.US, isSpy == TRUE),
+                        subset(bcw.trn.spy.NS, isSpy == TRUE))
+bcw.trn.SEM.US <- subset(bcw.trn.spy.US, (isSpy == FALSE))
+bcw.trn.SEM.NS <- subset(bcw.trn.spy.NS, (isSpy == FALSE))
+
+##  Build final classifier
+bcw.trn.SEM.PS$spyLabel <- 4
+bcw.trn.SEM.PS$Pr  <- 1
+bcw.trn.SEM.PS$PrN <- 0
+bcw.trn.SEM.PS$isSpy <- NULL
+bcw.trn.SEM.PS$isFixed <- TRUE
+
+bcw.trn.SEM.NS$spyLabel <- 2
+bcw.trn.SEM.NS$Pr  <- 0
+bcw.trn.SEM.NS$PrN <- 1
+bcw.trn.SEM.NS$isSpy <- NULL
+bcw.trn.SEM.NS$isFixed <- FALSE
+
+bcw.trn.SEM.US$isSpy <- NULL
+bcw.trn.SEM.US$isFixed <- FALSE
+
+nbc <- naiveBayes(
+  as.factor(spyLabel) ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
+  data = (rbind(bcw.trn.SEM.PS, bcw.trn.SEM.NS)),
+  laplace = 0)
+
+bcw.trn.SEM.data <- rbind(bcw.trn.SEM.PS, bcw.trn.SEM.NS, bcw.trn.SEM.US)
+for (i in 1:35) {
+  bcw.trn.SEM.data$spyLabel <- predict(nbc, bcw.trn.SEM.data[, bcw.features])
+  temp <- predict(nbc, bcw.trn.SEM.data[, bcw.features], type="raw")
+  bcw.trn.SEM.data$Pr  <- temp[,1]
+  bcw.trn.SEM.data$PrN <- temp[,2]
+  
+  ## PS does not change
+  bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$spyLabel <- 4
+  bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$Pr  <- 1
+  bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$PrN <- 0
+  
+  ## build new nbc
+  nbc <- naiveBayes(
+    as.factor(spyLabel) ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
+    data = bcw.trn.SEM.data,
+    laplace = 0)
+}
+
+bcw.trn.SEM.classifier <- nbc
+
+################################################
+####    Roc-SVM
+################################################
+bcw.trn.RocSVM.PS <- bcw.trn.roc.PS
+bcw.trn.RocSVM.US <- subset(bcw.trn.roc.US, rocLabel == 4)
+bcw.trn.RocSVM.NS <- subset(bcw.trn.roc.US, rocLabel == 2)
+
+bcw.trn.RocSVM.PS$label <- 4
+bcw.trn.RocSVM.NS$label <-2
+bcw.trn.RocSVM.NS$rocLabel <- NULL
+bcw.trn.RocSVM.US$rocLabel <- NULL
+bcw.trn.RocSVM.data <- rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.NS)
+
+## Store for comparison
+bcw.trn.RocSVM.model.0 <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9, 
+                            data=bcw.trn.RocSVM.data,
+                            type="C-classification")
+
+bcw.trn.RocSVM.model.i <- bcw.trn.RocSVM.model.0
+
+bcw.trn.RocSVM.i <- 0
+while (TRUE) {
+  ## Count iterations
+  bcw.trn.RocSVM.i <- bcw.trn.RocSVM.i + 1
+  
+  ## Retrieved negatively classified documents
+  bcw.trn.RocSVM.US$label <- predict(bcw.trn.RocSVM.model.i, bcw.trn.RocSVM.US)
+  bcw.trn.RocSVM.w <- bcw.trn.RocSVM.US[bcw.trn.RocSVM.US$label == 2 , ]
+  
+  if (nrow(bcw.trn.RocSVM.w) == 0) {
+    break
+  } else {
+    bcw.trn.RocSVM.US <- subset(bcw.trn.RocSVM.US, !(bcw.trn.RocSVM.US$id %in% bcw.trn.RocSVM.w$id))
+    bcw.trn.RocSVM.data <- rbind(bcw.trn.RocSVM.data, bcw.trn.RocSVM.w)
+    
+    ## Build another model
+    bcw.trn.RocSVM.model.i <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9, 
+                                  data=bcw.trn.RocSVM.data,
+                                  type="C-classification")
+  }
+}
+  
+bcw.trn.RocSVM.PS$svmlabel <- predict(bcw.trn.RocSVM.model.i, bcw.trn.RocSVM.PS)
+bcw.trn.RocSVM.PSnegativeCount <- nrow(bcw.trn.RocSVM.PS[bcw.trn.RocSVM.PS$svmlabel == 2 , ])
+
+## Selecting final classifier
+if (bcw.trn.RocSVM.PSnegativeCount / nrow(bcw.trn.RocSVM.PS) > 0.05) {
+  bcw.trn.RocSVM.model <- bcw.trn.RocSVM.model.0
+} else {
+  bcw.trn.RocSVM.model <- bcw.trn.RocSVM.model.i
+}
+
+## Delete to prevent confusion
+#rm(bcw.trn.RocSVM.model.0, bcw.trn.RocSVM.model.i)
+
+## Final classification
+bcw.trn.RocSVM.US <- subset(bcw.trn.roc.US, rocLabel == 4)
+bcw.trn.RocSVM.US$predict <- predict(bcw.trn.RocSVM.model, bcw.trn.RocSVM.US)
+  
+## Combining data
+bcw.trn.RocSVM.PS <- bcw.trn.roc.PS
+bcw.trn.RocSVM.NS <- subset(bcw.trn.roc.US, rocLabel == 2)
+bcw.trn.RocSVM.NS$rocLabel <- NULL
+bcw.trn.RocSVM.US$rocLabel <- NULL
+
+bcw.trn.RocSVM.PS$predict <- 4
+bcw.trn.RocSVM.NS$predict <- 2
+
+bcw.trn.RocSVM.data <- rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.US, bcw.trn.RocSVM.NS)
+  
+
+
+################################################
+####    F-measure
+################################################
+## True positives (TP) - Correctly idd as success
+## True negatives (TN) - Correctly idd as failure
+## False positives (FP) - success incorrectly idd as failure
+## False negatives (FN) - failure incorrectly idd as success
+## Precision - P = TP/(TP+FP) how many idd actually success/failure
+## Recall - R = TP/(TP+FN) how many of the successes correctly idd
+## F-score - F = (2 * P * R)/(P + R) harm mean of precision and recall
