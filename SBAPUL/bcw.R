@@ -476,47 +476,52 @@ bcw.trn.SEM.PS <- rbind(bcw.trn.spy.PS,
 bcw.trn.SEM.US <- subset(bcw.trn.spy.US, (isSpy == FALSE))
 bcw.trn.SEM.NS <- subset(bcw.trn.spy.NS, (isSpy == FALSE))
 
-##  Build final classifier
-bcw.trn.SEM.PS$spyLabel <- 4
+## Fix labeling and columns
+bcw.trn.SEM.PS$label <- 4
 bcw.trn.SEM.PS$Pr  <- 1
 bcw.trn.SEM.PS$PrN <- 0
-bcw.trn.SEM.PS$isSpy <- NULL
 bcw.trn.SEM.PS$isFixed <- TRUE
 
-bcw.trn.SEM.NS$spyLabel <- 2
+bcw.trn.SEM.NS$label <- 2
 bcw.trn.SEM.NS$Pr  <- 0
 bcw.trn.SEM.NS$PrN <- 1
-bcw.trn.SEM.NS$isSpy <- NULL
 bcw.trn.SEM.NS$isFixed <- FALSE
 
-bcw.trn.SEM.US$isSpy <- NULL
 bcw.trn.SEM.US$isFixed <- FALSE
 
+##  Run EM algorithm to build final classifier
 nbc <- naiveBayes(
-  as.factor(spyLabel) ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
+  as.factor(label) ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
   data = (rbind(bcw.trn.SEM.PS, bcw.trn.SEM.NS)),
   laplace = 0)
 
 bcw.trn.SEM.data <- rbind(bcw.trn.SEM.PS, bcw.trn.SEM.NS, bcw.trn.SEM.US)
+bcw.trn.SEM.data$isSpy <- NULL
+bcw.trn.SEM.data$spyLabel <- NULL
 for (i in 1:35) {
-  bcw.trn.SEM.data$spyLabel <- predict(nbc, bcw.trn.SEM.data[, bcw.features])
+  bcw.trn.SEM.data$label <- predict(nbc, bcw.trn.SEM.data[, bcw.features])
   temp <- predict(nbc, bcw.trn.SEM.data[, bcw.features], type="raw")
   bcw.trn.SEM.data$Pr  <- temp[,1]
   bcw.trn.SEM.data$PrN <- temp[,2]
   
-  ## PS does not change
-  bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$spyLabel <- 4
+  ## PS does not change, reset it to correct values
+  bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$label <- 4
   bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$Pr  <- 1
   bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$PrN <- 0
   
   ## build new nbc
   nbc <- naiveBayes(
-    as.factor(spyLabel) ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
+    as.factor(label) ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
     data = bcw.trn.SEM.data,
     laplace = 0)
 }
 
 bcw.trn.SEM.classifier <- nbc
+
+## Cleaning up
+rm(bcw.trn.SEM.PS, bcw.trn.SEM.NS, bcw.trn.SEM.US)
+
+
 
 ################################################
 ####    Roc-SVM
@@ -526,17 +531,16 @@ bcw.trn.RocSVM.US <- subset(bcw.trn.roc.US, rocLabel == 4)
 bcw.trn.RocSVM.NS <- subset(bcw.trn.roc.US, rocLabel == 2)
 
 bcw.trn.RocSVM.PS$label <- 4
-bcw.trn.RocSVM.NS$label <-2
+bcw.trn.RocSVM.NS$label <- 2
 bcw.trn.RocSVM.NS$rocLabel <- NULL
 bcw.trn.RocSVM.US$rocLabel <- NULL
-bcw.trn.RocSVM.data <- rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.NS)
+# bcw.trn.RocSVM.data <- rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.NS)
 
-## Store for comparison
-bcw.trn.RocSVM.model.0 <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9, 
-                            data=bcw.trn.RocSVM.data,
-                            type="C-classification")
-
-bcw.trn.RocSVM.model.i <- bcw.trn.RocSVM.model.0
+## Store as model.0 for comparison
+bcw.trn.RocSVM.classifier.0 <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9, 
+                              data = rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.NS),
+                              type = "C-classification")
+bcw.trn.RocSVM.classifier.i <- bcw.trn.RocSVM.classifier.0
 
 bcw.trn.RocSVM.i <- 0
 while (TRUE) {
@@ -544,50 +548,37 @@ while (TRUE) {
   bcw.trn.RocSVM.i <- bcw.trn.RocSVM.i + 1
   
   ## Retrieved negatively classified documents
-  bcw.trn.RocSVM.US$label <- predict(bcw.trn.RocSVM.model.i, bcw.trn.RocSVM.US)
-  bcw.trn.RocSVM.w <- bcw.trn.RocSVM.US[bcw.trn.RocSVM.US$label == 2 , ]
+  bcw.trn.RocSVM.US$label <- predict(bcw.trn.RocSVM.classifier.i, bcw.trn.RocSVM.US)
+  bcw.trn.RocSVM.w <- bcw.trn.RocSVM.US[bcw.trn.RocSVM.US$label == 2, ]
   
   if (nrow(bcw.trn.RocSVM.w) == 0) {
     break
   } else {
-    bcw.trn.RocSVM.US <- subset(bcw.trn.RocSVM.US, !(bcw.trn.RocSVM.US$id %in% bcw.trn.RocSVM.w$id))
-    bcw.trn.RocSVM.data <- rbind(bcw.trn.RocSVM.data, bcw.trn.RocSVM.w)
+    bcw.trn.RocSVM.US <- bcw.trn.RocSVM.US[bcw.trn.RocSVM.US$label == 4, ]
+    bcw.trn.RocSVM.NS <- rbind(bcw.trn.RocSVM.NS, bcw.trn.RocSVM.w)
     
     ## Build another model
-    bcw.trn.RocSVM.model.i <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9, 
-                                  data=bcw.trn.RocSVM.data,
-                                  type="C-classification")
+    bcw.trn.RocSVM.classifier.i <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9, 
+                                  rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.NS),
+                                  type = "C-classification")
   }
 }
-  
-bcw.trn.RocSVM.PS$svmlabel <- predict(bcw.trn.RocSVM.model.i, bcw.trn.RocSVM.PS)
+
+## Additional step: Use final classifier to check PS
+bcw.trn.RocSVM.PS$svmlabel <- predict(bcw.trn.RocSVM.classifier.i, bcw.trn.RocSVM.PS)
 bcw.trn.RocSVM.PSnegativeCount <- nrow(bcw.trn.RocSVM.PS[bcw.trn.RocSVM.PS$svmlabel == 2 , ])
 
 ## Selecting final classifier
 if (bcw.trn.RocSVM.PSnegativeCount / nrow(bcw.trn.RocSVM.PS) > 0.05) {
-  bcw.trn.RocSVM.model <- bcw.trn.RocSVM.model.0
+  bcw.trn.RocSVM.classifier <- bcw.trn.RocSVM.classifier.0
 } else {
-  bcw.trn.RocSVM.model <- bcw.trn.RocSVM.model.i
+  bcw.trn.RocSVM.classifier <- bcw.trn.RocSVM.classifier.i
 }
 
-## Delete to prevent confusion
-#rm(bcw.trn.RocSVM.model.0, bcw.trn.RocSVM.model.i)
+## Cleaning up
+#rm(bcw.trn.RocSVM.classifier.0, bcw.trn.RocSVM.classifier.i, bcw.trn.RocSVM.i, bcw.trn.RocSVM.w)
+rm(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.US, bcw.trn.RocSVM.NS, bcw.trn.RocSVM.PSnegativeCount)
 
-## Final classification
-bcw.trn.RocSVM.US <- subset(bcw.trn.roc.US, rocLabel == 4)
-bcw.trn.RocSVM.US$predict <- predict(bcw.trn.RocSVM.model, bcw.trn.RocSVM.US)
-  
-## Combining data
-bcw.trn.RocSVM.PS <- bcw.trn.roc.PS
-bcw.trn.RocSVM.NS <- subset(bcw.trn.roc.US, rocLabel == 2)
-bcw.trn.RocSVM.NS$rocLabel <- NULL
-bcw.trn.RocSVM.US$rocLabel <- NULL
-
-bcw.trn.RocSVM.PS$predict <- 4
-bcw.trn.RocSVM.NS$predict <- 2
-
-bcw.trn.RocSVM.data <- rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.US, bcw.trn.RocSVM.NS)
-  
 
 
 ################################################
