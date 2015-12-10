@@ -46,7 +46,18 @@ bcw$V6[index] <- V6.mean
 bcw$V6 <- as.integer(bcw$V6)
 
 
+################################################
+####    Set up loop for final data collection
+################################################
+f.globalSPUL <- numeric(0)
+f.localSPUL <- numeric(0)
+f.SEM <- numeric(0)
+f.RocSVM <- numeric(0)
 
+for (rep10 in 1:10) {
+
+  
+  
 ################################################
 ####    Splitting the data
 ################################################
@@ -487,6 +498,7 @@ bcw.trn.SEM.NS$Pr  <- 0
 bcw.trn.SEM.NS$PrN <- 1
 bcw.trn.SEM.NS$isFixed <- FALSE
 
+bcw.trn.SEM.US$label <- 0
 bcw.trn.SEM.US$isFixed <- FALSE
 
 ##  Run EM algorithm to build final classifier
@@ -584,10 +596,50 @@ rm(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.US, bcw.trn.RocSVM.NS, bcw.trn.RocSVM.PSneg
 ################################################
 ####    F-measure
 ################################################
-## True positives (TP) - Correctly idd as success
-## True negatives (TN) - Correctly idd as failure
-## False positives (FP) - success incorrectly idd as failure
-## False negatives (FN) - failure incorrectly idd as success
-## Precision - P = TP/(TP+FP) how many idd actually success/failure
-## Recall - R = TP/(TP+FN) how many of the successes correctly idd
-## F-score - F = (2 * P * R)/(P + R) harm mean of precision and recall
+## True positives (TP) - Correctly labeled as positive
+## True negatives (TN) - Correctly labeled as negative
+## False positives (FP) - Positive labeled incorrectly
+## False negatives (FN) - Negative labeled incorrectly
+## Precision - P = TP/(TP+FP)
+## Recall - R = TP/(TP+FN)
+## F-score - F = (2 * P * R)/(P + R)
+calculateF <- function(data) {
+  TP <- nrow(data[(data$class == 4 & data$predict == 4), ])
+  TN <- nrow(data[(data$class == 2 & data$predict == 2), ])
+  FP <- nrow(data[(data$class == 2 & data$predict == 4), ])
+  FN <- nrow(data[(data$class == 4 & data$predict == 2), ])
+  
+  Precision <- TP / (TP+FP)
+  Recall    <- TP / (TP+FN)
+  
+  F <- (2 * Precision * Recall) / (Precision + Recall)
+  return (F)
+}
+
+
+## Run for Spy-EM
+bcw.tst.SEM.data <- bcw.tst
+bcw.tst.SEM.data$predict <- predict(bcw.trn.SEM.classifier, bcw.tst[, bcw.features])
+f.SEM <- c(f.SEM, calculateF(bcw.tst.SEM.data))
+
+## Run for Roc-SVM
+bcw.tst.RocSVM.data <- bcw.tst
+bcw.tst.RocSVM.data$predict <- predict(bcw.trn.RocSVM.classifier, bcw.tst[, bcw.features])
+f.RocSVM <- c(f.RocSVM, calculateF(bcw.tst.RocSVM.data))
+
+
+## Closing bracket for looping 10 times to reduce sampling bias (Ctrl-F "rep10")
+}
+
+
+
+################################################
+####    F-measure results
+################################################
+f.globalSPUL
+f.localSPUL
+f.SEM
+f.RocSVM
+
+f.raw <- data.frame(f.globalSPUL, f.localSPUL, f.SEM, f.RocSVM)
+f.mean <- colMeans(f.raw)
