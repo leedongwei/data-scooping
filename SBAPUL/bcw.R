@@ -1,4 +1,4 @@
-libs <- c("e1071", "caret", "plyr")
+libs <- c("e1071", "caret", "plyr", "Rsolnp")
 install.packages(libs, dependencies=TRUE)
 lapply(libs, require, character.only=TRUE)
 
@@ -49,6 +49,11 @@ bcw$V6 <- as.integer(bcw$V6)
 ################################################
 ####    Set up loop for final data collection
 ################################################
+f.nofold.globalSPUL <- numeric(0)
+f.nofold.localSPUL <- numeric(0)
+f.nofold.SEM <- numeric(0)
+f.nofold.RocSVM <- numeric(0)
+
 f.globalSPUL <- numeric(0)
 f.localSPUL <- numeric(0)
 f.SEM <- numeric(0)
@@ -473,9 +478,15 @@ bcw.svm.s.star     <- rbind(svmp, svmn)
 
 # SVMglobalSPUL
 # SVMlocalSPUL
+  
+calculateW <- function() {
+  
+}
 
 
-
+## To find b
+#b is found by using the KKT “complementarity” condition
+#by choosing any i for which αi ≠ 0 and computing b.
 
 ################################################
 ####    Spy-EM
@@ -616,16 +627,39 @@ calculateF <- function(data) {
   return (F)
 }
 
+## Creating folds for 10-fold cross validation
+bcw.tst$fold <- createFolds(rownames(bcw.tst), k = 10, list = FALSE, returnTrain = FALSE)
 
-## Run for Spy-EM
+
+## Predict for Spy-EM
 bcw.tst.SEM.data <- bcw.tst
 bcw.tst.SEM.data$predict <- predict(bcw.trn.SEM.classifier, bcw.tst[, bcw.features])
-f.SEM <- c(f.SEM, calculateF(bcw.tst.SEM.data))
 
-## Run for Roc-SVM
+## Calculate F-measure for each fold
+bcw.tst.folds.f <- numeric(0)
+for (i in 1:10) {
+  bcw.tst.folds.f <- c(bcw.tst.folds.f, calculateF(bcw.tst.SEM.data[bcw.tst.SEM.data$fold == i, ]))
+}
+f.SEM <- c(f.SEM, mean(bcw.tst.folds.f))
+
+## Calculate F-measure when not using 10-fold validation
+f.nofold.SEM <- c(f.nofold.SEM, calculateF(bcw.tst.SEM.data))
+
+
+## Predict for Roc-SVM
 bcw.tst.RocSVM.data <- bcw.tst
 bcw.tst.RocSVM.data$predict <- predict(bcw.trn.RocSVM.classifier, bcw.tst[, bcw.features])
-f.RocSVM <- c(f.RocSVM, calculateF(bcw.tst.RocSVM.data))
+
+## Calculate F-measure for each fold
+bcw.tst.folds.f <- numeric(0)
+for (i in 1:10) {
+  bcw.tst.folds.f <- c(bcw.tst.folds.f, calculateF(bcw.tst.RocSVM.data[bcw.tst.RocSVM.data$fold == i, ]))
+}
+f.RocSVM <- c(f.RocSVM, mean(bcw.tst.folds.f))
+
+## Calculate F-measure when not using 10-fold validation
+f.nofold.RocSVM <- c(f.nofold.RocSVM, calculateF(bcw.tst.RocSVM.data))
+
 
 
 ## Closing bracket for looping 10 times to reduce sampling bias (Ctrl-F "rep10")
@@ -636,10 +670,15 @@ f.RocSVM <- c(f.RocSVM, calculateF(bcw.tst.RocSVM.data))
 ################################################
 ####    F-measure results
 ################################################
-f.globalSPUL
-f.localSPUL
-f.SEM
-f.RocSVM
+# f.nofold.globalSPUL
+# f.nofold.localSPUL
+# f.nofold.SEM
+# f.nofold.RocSVM
 
-f.raw <- data.frame(f.globalSPUL, f.localSPUL, f.SEM, f.RocSVM)
-f.mean <- colMeans(f.raw)
+# f.globalSPUL
+# f.localSPUL
+# f.SEM
+# f.RocSVM
+
+f.raw <- data.frame(f.SEM, f.RocSVM, f.nofold.SEM, f.nofold.RocSVM)
+f.mean <- colMeans(f.raw, na.rm=TRUE)
