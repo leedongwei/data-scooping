@@ -61,13 +61,13 @@ f.RocSVM <- numeric(0)
 
 for (rep10 in 1:10) {
 
-  
-  
+
+
 ################################################
 ####    Splitting the data
 ################################################
 temp <- createDataPartition(
-                    bcw$class, 
+                    bcw$class,
                     times = 1,
                     p = 0.6,
                     list = FALSE)
@@ -84,7 +84,7 @@ bcw.trn.negative <- subset(bcw.trn, class=="2")
 ## Value of g is taken from page 1581 of this paper
 cnst.g <- 0.15
 temp <- createDataPartition(
-                    bcw.trn.positive$class, 
+                    bcw.trn.positive$class,
                     times = 1,
                     p = cnst.g,
                     list = FALSE)
@@ -113,7 +113,7 @@ bcw.trn.spy.US$isSpy <- FALSE
 ## Value of s is taken from page 3 of Liu, Dai, Li, Lee, Yu (2003)
 cnst.s <- 0.15
 temp <- createDataPartition(
-                    bcw.trn.spy.PS$class, 
+                    bcw.trn.spy.PS$class,
                     times = 1,
                     p = cnst.s,
                     list = FALSE)
@@ -143,11 +143,11 @@ for (i in 1:35) {
   temp <- predict(nbc, bcw.trn.spy.US[, bcw.features], type="raw")
   bcw.trn.spy.US$Pr  <- temp[,1]
   bcw.trn.spy.US$PrN <- temp[,2]
-  
+
   ## build new nbc
   nbc <- naiveBayes(
     spyLabel ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
-    data = bcw.trn.spy.US,
+    data = rbind(bcw.trn.spy.PS, bcw.trn.spy.US),
     laplace = 0)
 }
 
@@ -181,19 +181,19 @@ bcw.trn.roc.US <- bcw.trn.US
 BcwRocchioVectorBuilder <- function(DF1, DF2) {
   alpha <- 16
   beta <- 4
-  
+
   ## Remove non-significant columns (e.g. id, class, rocLabel)
   DF1 <- DF1[ , bcw.features]
   DF2 <- DF2[ , bcw.features]
-  
+
   norma.d.1 <- apply(DF1, 1, function(x){x/sqrt(sum(x^2))})
   DF1.size <- nrow(DF1)
   term.1 <- alpha * rowSums(norma.d.1)/DF1.size
-  
+
   norma.d.2 <- apply(DF2, 1, function(x){x/sqrt(sum(x^2))})
   DF2.size <- nrow(DF2)
   term.2 <- beta * rowSums(norma.d.2)/DF2.size
-  
+
   c <- term.1 + term.2
   return(c)
 }
@@ -201,16 +201,16 @@ BcwRocchioVectorBuilder <- function(DF1, DF2) {
 BcwRocchioClassifer <- function(DF.row, vector1, vector2) {
   ## Remove non-significant columns
   DF.row <- DF.row[ , bcw.features]
-  
+
   r1 <- sum(vector1 * DF.row)
   r2 <- sum(vector2 * DF.row)
-  
+
   if (r1 >= r2) {
     rocLabel <- 4
   } else {
     rocLabel <- 2
   }
-  
+
   return(rocLabel)
 }
 
@@ -283,11 +283,11 @@ bcw.trn.step1.n.k <- data.frame(temp)
 
 for (k in 1:cnst.m) {
   cluster.k <- subset(bcw.trn.step1.NS, cluster==k)
-  
+
   p.k <- BcwRocchioVectorBuilder(bcw.trn.step1.PS, cluster.k)
   p.k <- c(k, p.k)
   bcw.trn.step1.p.k <- rbind(bcw.trn.step1.p.k, p.k)
-  
+
   n.k <- BcwRocchioVectorBuilder(cluster.k, bcw.trn.step1.PS)
   n.k <- c(k, n.k)
   bcw.trn.step1.n.k <- rbind(bcw.trn.step1.n.k, n.k)
@@ -319,12 +319,12 @@ bcw.trn.step1.US <- rename(bcw.trn.step1.US, c("bcw.trn.step1.US.fit.cluster" = 
 BcwSimilarityValue <- function(DF.row, prototype1) {
   DF.row <- DF.row[ , bcw.features]
   prototype1 <- prototype1[ , bcw.features]
-    
+
   norma.x   <- apply(DF.row, 1, function(x){sqrt(sum(x^2))})
   norma.p.k <- apply(prototype1, 1, function(x){sqrt(sum(x^2))})
-  
+
   sim <- sum((DF.row * prototype1) / (norma.x * norma.p.k))
-  
+
   return(sim)
 }
 
@@ -351,28 +351,28 @@ bcw.trn.localSPUL.US$m.minus <- -1
 ## For each cluster in US
 for (j in 1:cnst.r) {
   cluster.j <- subset(bcw.trn.localSPUL.US, cluster==j)
-  
+
   cluster.size <- nrow(cluster.j)
   cluster.lp <- 0
   cluster.ln <- 0
-  
+
   ## For each document in cluster
   for (i in 1:nrow(cluster.j)) {
     cluster.j.pk <- numeric(0)
     cluster.j.nk <- numeric(0)
-    
+
     ## Run this document with every positive vector
-    for (k in 1:nrow(bcw.trn.step1.p.k)) { 
+    for (k in 1:nrow(bcw.trn.step1.p.k)) {
       temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.p.k[k, ])
       cluster.j.pk <- c(cluster.j.pk, temp)
     }
-    
+
     ## Run this document with every negative vector
-    for (k in 1:nrow(bcw.trn.step1.n.k)) { 
+    for (k in 1:nrow(bcw.trn.step1.n.k)) {
       temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.n.k[k, ])
       cluster.j.nk <- c(cluster.j.nk, temp)
     }
-    
+
     ## Count number of documents that are closer to positive/negative prototypes
     if (max(cluster.j.pk) > max(cluster.j.nk)) {
       cluster.lp <- cluster.lp + 1
@@ -380,10 +380,10 @@ for (j in 1:cnst.r) {
       cluster.ln <- cluster.ln + 1
     }
   }
-  
+
   ## Calculate m+ for entire cluster
   bcw.trn.localSPUL.US[bcw.trn.localSPUL.US$cluster==j, ]$m.plus  <- cluster.lp / cluster.size
-  
+
   ## Calculate m- for entire cluster
   bcw.trn.localSPUL.US[bcw.trn.localSPUL.US$cluster==j, ]$m.minus <- cluster.ln / cluster.size
 }
@@ -415,28 +415,28 @@ bcw.trn.globalSPUL.US$m.minus <- -1
 ## For each cluster in US
 for (j in 1:cnst.r) {
   cluster.j <- subset(bcw.trn.globalSPUL.US, cluster==j)
-  
+
   ## For each document in cluster
   for (i in 1:nrow(cluster.j)) {
     cluster.j.pk <- numeric(0)
     cluster.j.nk <- numeric(0)
-    
+
     ## Run this document with every positive vector
-    for (k in 1:nrow(bcw.trn.step1.p.k)) { 
+    for (k in 1:nrow(bcw.trn.step1.p.k)) {
       temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.p.k[k, ])
       cluster.j.pk <- c(cluster.j.pk, temp)
     }
-    
+
     ## Run this document with every negative vector
-    for (k in 1:nrow(bcw.trn.step1.n.k)) { 
+    for (k in 1:nrow(bcw.trn.step1.n.k)) {
       temp <- BcwSimilarityValue(cluster.j[i, ], bcw.trn.step1.n.k[k, ])
       cluster.j.nk <- c(cluster.j.nk, temp)
     }
-    
+
     ## Calculate m+ for this document, save in globalSPUL
     temp <- sum(cluster.j.pk) / (sum(cluster.j.pk) + sum(cluster.j.nk))
     bcw.trn.globalSPUL.US[bcw.trn.globalSPUL.US$id == cluster.j[i, ]$id, ]$m.plus <- temp
-    
+
     ## Calculate m- for this document, save in globalSPUL
     temp <- sum(cluster.j.nk) / (sum(cluster.j.pk) + sum(cluster.j.nk))
     bcw.trn.globalSPUL.US[bcw.trn.globalSPUL.US$id == cluster.j[i, ]$id, ]$m.minus <- temp
@@ -478,9 +478,9 @@ bcw.svm.s.star     <- rbind(svmp, svmn)
 
 # SVMglobalSPUL
 # SVMlocalSPUL
-  
+
 calculateW <- function() {
-  
+
 }
 
 
@@ -492,7 +492,7 @@ calculateW <- function() {
 ####    Spy-EM
 ################################################
 ## Put Spy documents back in PS
-bcw.trn.SEM.PS <- rbind(bcw.trn.spy.PS, 
+bcw.trn.SEM.PS <- rbind(bcw.trn.spy.PS,
                         subset(bcw.trn.spy.US, isSpy == TRUE),
                         subset(bcw.trn.spy.NS, isSpy == TRUE))
 bcw.trn.SEM.US <- subset(bcw.trn.spy.US, (isSpy == FALSE))
@@ -526,12 +526,12 @@ for (i in 1:35) {
   temp <- predict(nbc, bcw.trn.SEM.data[, bcw.features], type="raw")
   bcw.trn.SEM.data$Pr  <- temp[,1]
   bcw.trn.SEM.data$PrN <- temp[,2]
-  
+
   ## PS does not change, reset it to correct values
   bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$label <- 4
   bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$Pr  <- 1
   bcw.trn.SEM.data[bcw.trn.SEM.data$isFixed == TRUE, ]$PrN <- 0
-  
+
   ## build new nbc
   nbc <- naiveBayes(
     as.factor(label) ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
@@ -560,7 +560,7 @@ bcw.trn.RocSVM.US$rocLabel <- NULL
 # bcw.trn.RocSVM.data <- rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.NS)
 
 ## Store as model.0 for comparison
-bcw.trn.RocSVM.classifier.0 <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9, 
+bcw.trn.RocSVM.classifier.0 <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
                               data = rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.NS),
                               type = "C-classification")
 bcw.trn.RocSVM.classifier.i <- bcw.trn.RocSVM.classifier.0
@@ -569,19 +569,19 @@ bcw.trn.RocSVM.i <- 0
 while (TRUE) {
   ## Count iterations
   bcw.trn.RocSVM.i <- bcw.trn.RocSVM.i + 1
-  
+
   ## Retrieved negatively classified documents
   bcw.trn.RocSVM.US$label <- predict(bcw.trn.RocSVM.classifier.i, bcw.trn.RocSVM.US)
   bcw.trn.RocSVM.w <- bcw.trn.RocSVM.US[bcw.trn.RocSVM.US$label == 2, ]
-  
+
   if (nrow(bcw.trn.RocSVM.w) == 0) {
     break
   } else {
     bcw.trn.RocSVM.US <- bcw.trn.RocSVM.US[bcw.trn.RocSVM.US$label == 4, ]
     bcw.trn.RocSVM.NS <- rbind(bcw.trn.RocSVM.NS, bcw.trn.RocSVM.w)
-    
+
     ## Build another model
-    bcw.trn.RocSVM.classifier.i <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9, 
+    bcw.trn.RocSVM.classifier.i <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
                                   rbind(bcw.trn.RocSVM.PS, bcw.trn.RocSVM.NS),
                                   type = "C-classification")
   }
@@ -619,10 +619,10 @@ calculateF <- function(data) {
   TN <- nrow(data[(data$class == 2 & data$predict == 2), ])
   FP <- nrow(data[(data$class == 2 & data$predict == 4), ])
   FN <- nrow(data[(data$class == 4 & data$predict == 2), ])
-  
+
   Precision <- TP / (TP+FP)
   Recall    <- TP / (TP+FN)
-  
+
   F <- (2 * Precision * Recall) / (Precision + Recall)
   return (F)
 }
@@ -680,5 +680,5 @@ f.nofold.RocSVM <- c(f.nofold.RocSVM, calculateF(bcw.tst.RocSVM.data))
 # f.SEM
 # f.RocSVM
 
-f.raw <- data.frame(f.SEM, f.RocSVM, f.nofold.SEM, f.nofold.RocSVM)
+f.raw <- data.frame(f.SEM, f.nofold.SEM, f.RocSVM, f.nofold.RocSVM)
 f.mean <- colMeans(f.raw, na.rm=TRUE)
