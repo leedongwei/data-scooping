@@ -723,6 +723,154 @@ bcw.getSimilaryWeightSvmClassifier <- function(bcw.PS, bcw.US, isGlobal) {
 
 
 ################################################
+####    Similary-Weight SVM
+################################################
+bcw.getReliableNegativeWithLELC <- function(bcw.PS, bcw.US) {
+  bcw.data.spy <- bcw.getReliableNegativeWithSpyTechnique(bcw.PS, bcw.US)
+  bcw.data.roc <- bcw.getReliableNegativeWithRocchio(bcw.PS, bcw.US)
+  
+  bcw.data <-merge(
+    bcw.data.spy[, c("id", bcw.features, "class", "spyLabel")],
+    bcw.data.roc[, c("id", "rocLabel")],
+    by="id")
+  
+  ## Extract RN
+  bcw.RN <- c()
+  for (i in 1:nrow(bcw.data)) {
+    if ((bcw.data[i, ]$spyLabel == 2) && (bcw.data[i, ]$rocLabel == 2)) {
+      bcw.RN <- rbind(bcw.RN, bcw.data[i, ])
+    }
+  }
+  
+  ## US documents are all documents that are !RN and !PS
+  bcw.US <- subset(bcw.data, !(bcw.data$id %in% bcw.RN$id) & !(bcw.data$id %in% bcw.PS$id))
+  
+  ## Clean up labels
+  bcw.PS$spyLabel <- NULL
+  bcw.PS$rocLabel <- NULL
+  bcw.US$spyLabel <- NULL
+  bcw.US$rocLabel <- NULL
+  bcw.RN$spyLabel <- NULL
+  bcw.RN$rocLabel <- NULL
+  
+  
+  ####
+  ## Skip step on tf-idf on BCW data
+  ####
+  
+  
+  ## The choice of k does not affect classification results if it is not too small or big
+  ## I took the value of k frmo Similarity Based PU Learning Algorithm
+  cnst.k = 30 
+  cnst.r = floor(nrow(bcw.RN) * cnst.k / (nrow(bcw.PS) + nrow(bcw.RN) + nrow(bcw.US)))
+  
+  ## Cluster RN
+  bcw.RN.fit <- kmeans(bcw.RN[, bcw.features], cnst.r)
+  bcw.RN <- data.frame(bcw.RN, bcw.RN.fit$cluster)
+  bcw.RN <- rename(bcw.RN, c("bcw.RN.fit.cluster" = "cluster"))
+  
+  ################################################
+  ## Build representative prototypes
+  temp <- matrix(0, ncol = 10, nrow = 0)
+  bcw.pk <- data.frame(temp)
+  bcw.nk <- data.frame(temp)
+  
+  for (r in 1:cnst.r) {
+    cluster.r <- subset(bcw.RN, cluster == r)
+    
+    pk <- bcw.rocchioVectorBuilder(bcw.PS, cluster.r)
+    pk <- c(r, pk)
+    bcw.pk <- rbind(bcw.pk, pk)
+    
+    nk <- bcw.rocchioVectorBuilder(cluster.r, bcw.PS)
+    nk <- c(r, nk)
+    bcw.nk <- rbind(bcw.nk, nk)
+  }
+  
+  names(bcw.pk) <- c("k", bcw.features)
+  names(bcw.nk) <- c("k", bcw.features)
+  
+  
+  ## Cluster US
+  cnst.n = floor(nrow(bcw.US) * cnst.k / (nrow(bcw.PS) + nrow(bcw.RN) + nrow(bcw.US)))
+  bcw.US.fit <- kmeans(bcw.US[, bcw.features], cnst.n)
+  bcw.US <- data.frame(bcw.US, bcw.US.fit$cluster)
+  bcw.US <- rename(bcw.US, c("bcw.US.fit.cluster" = "cluster"))
+  
+  
+  bcw.LP <- c()   # Likely positive
+  bcw.LN <- c()   # Likely negative
+  ## For each cluster in US
+  for (n in 1:cnst.n) {
+    cluster.n <- subset(bcw.US, cluster == n)
+    vote.positive <- 0
+    vote.negative <- 0
+    
+    for (m in 1:nrow(cluster.n)) {
+      cluster.n.pk <- numeric(0)
+      cluster.n.nk <- numeric(0)
+      
+      ## Run this document with every positive vector
+      for (k in 1:nrow(bcw.pk)) {
+        temp <- bcw.calculateSimilarityValue(cluster.n[m, ], bcw.pk[k, ])
+        cluster.n.pk <- c(cluster.n.pk, temp)
+      }
+      
+      ## Run this document with every negative vector
+      for (k in 1:nrow(bcw.nk)) {
+        temp <- bcw.calculateSimilarityValue(cluster.n[m, ], bcw.nk[k, ])
+        cluster.n.nk <- c(cluster.n.nk, temp)
+      }
+      
+      if (max(cluster.n.pk) > max(cluster.n.nk)) {
+        vote.positive <- vote.positive + 1
+      } else {
+        vote.negative <- vote.negative + 1
+      }
+    }
+    
+    if (vote.positive > vote.negative) {
+      bcw.LP <- rbind(bcw.LP, cluster.n)
+    } else {
+      bcw.LN <- rbind(bcw.LN, cluster.n)
+    }
+  }
+  
+  bcw.LP$cluster <- NULL
+  bcw.LN$cluster <- NULL
+  bcw.RN$cluster <- NULL
+  
+  bcw.PS <- rbind(bcw.PS, bcw.LP) 
+  bcw.RN <- rbind(bcw.RN, bcw.LN) 
+  
+  bcw.PS$lelcLabel <- 4
+  bcw.RN$lelcLabel <- 2
+  
+  return(rbind(bcw.PS, bcw.RN))
+}
+
+
+bcw.getLelcClassifier <- function(bcw.PS, bcw.US) {
+  
+  bcw.data <- bcw.getReliableNegativeWithLELC(bcw.PS, bcw.US)
+  
+  bcw.PS <- bcw.data[bcw.data$lelcLabel == 4, ]
+  bcw.RN <- bcw.data[bcw.data$lelcLabel == 2, ]
+  bcw.PS$label <- 4
+  bcw.RN$label <- 2
+  bcw.PS$lelcLabel <- NULL
+  bcw.RN$lelcLabel <- NULL
+  
+  classifier.svm <- svm(label ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
+                        data = rbind(bcw.PS, bcw.RN),
+                        type = "C-classification")
+  
+  return (classifier.svm)
+}
+
+
+
+################################################
 ####    F-measure
 ################################################
 ## True positives (TP) - Positive labeled correctly
@@ -802,16 +950,18 @@ f.NB <- numeric(0)
 f.SEM <- numeric(0)
 f.RocSVM <- numeric(0)
 f.RocCluSVM <- numeric(0)
+f.LELC <- numeric(0)
 f.globalSPUL <- numeric(0)
 f.localSPUL <- numeric(0)
 a.NB <- numeric(0)
 a.SEM <- numeric(0)
 a.RocSVM <- numeric(0)
 a.RocCluSVM <- numeric(0)
+a.LELC <- numeric(0)
 a.globalSPUL <- numeric(0)
 a.localSPUL <- numeric(0)
 
-trnPercent <- c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6)
+trnPercent <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.45, 0.55, 0.65)
 
 ## Vary % of data that is labeled data
 for (var.i in 1:length(trnPercent)) {
@@ -820,12 +970,14 @@ for (var.i in 1:length(trnPercent)) {
   f.SEM.row         <- trnPercent[var.i]
   f.RocSVM.row      <- trnPercent[var.i]
   f.RocCluSVM.row   <- trnPercent[var.i]
+  f.LELC.row        <- trnPercent[var.i]
   f.globalSPUL.row  <- trnPercent[var.i]
   f.localSPUL.row   <- trnPercent[var.i]
   a.NB.row          <- trnPercent[var.i]
   a.SEM.row         <- trnPercent[var.i]
   a.RocSVM.row      <- trnPercent[var.i]
   a.RocCluSVM.row   <- trnPercent[var.i]
+  a.LELC.row        <- trnPercent[var.i]
   a.globalSPUL.row  <- trnPercent[var.i]
   a.localSPUL.row   <- trnPercent[var.i]
   
@@ -873,6 +1025,7 @@ for (var.i in 1:length(trnPercent)) {
     classifier.spyEm <- bcw.getSpyEmClassifier(bcw.PS, bcw.US)
     classifier.rocchioSvm <- bcw.getRocSvmClassifier(bcw.PS, bcw.US)
     classifier.rocchioCluSvm <- bcw.getRocCluSvmClassifier(bcw.PS, bcw.US)
+    classifier.lelc <- bcw.getLelcClassifier(bcw.PS, bcw.US)
     
     
     
@@ -889,6 +1042,9 @@ for (var.i in 1:length(trnPercent)) {
     
     bcw.tst.RocCluSVM <- bcw.tst
     bcw.tst.RocCluSVM$predict <- predict(classifier.rocchioCluSvm, bcw.tst[, bcw.features])
+    
+    bcw.tst.LELC <- bcw.tst
+    bcw.tst.LELC$predict <- predict(classifier.lelc, bcw.tst[, bcw.features])
     
     
     ################################################
@@ -907,6 +1063,9 @@ for (var.i in 1:length(trnPercent)) {
     bcw.tst.RocCluSVM.folds.f <- numeric(0)
     bcw.tst.RocCluSVM.folds.a <- numeric(0)
     
+    bcw.tst.LELC.folds.f <- numeric(0)
+    bcw.tst.LELC.folds.a <- numeric(0)
+    
     
     for (i in 1:10) {
       bcw.tst.NB.folds.f <- c(bcw.tst.NB.folds.f, bcw.calculateFMeasure(bcw.tst.NB[bcw.tst.NB$fold == i, ]))
@@ -920,6 +1079,9 @@ for (var.i in 1:length(trnPercent)) {
       
       bcw.tst.RocCluSVM.folds.f <- c(bcw.tst.RocCluSVM.folds.f, bcw.calculateFMeasure(bcw.tst.RocCluSVM[bcw.tst.RocCluSVM$fold == i, ]))
       bcw.tst.RocCluSVM.folds.a <- c(bcw.tst.RocCluSVM.folds.a, bcw.calculateAccuracy(bcw.tst.RocCluSVM[bcw.tst.RocCluSVM$fold == i, ]))
+      
+      bcw.tst.LELC.folds.f <- c(bcw.tst.LELC.folds.f, bcw.calculateFMeasure(bcw.tst.LELC[bcw.tst.LELC$fold == i, ]))
+      bcw.tst.LELC.folds.a <- c(bcw.tst.LELC.folds.a, bcw.calculateAccuracy(bcw.tst.LELC[bcw.tst.LELC$fold == i, ]))
     }
     f.NB.row <- c(f.NB.row, mean(bcw.tst.NB.folds.f))
     a.NB.row <- c(a.NB.row, mean(bcw.tst.NB.folds.a))
@@ -932,6 +1094,9 @@ for (var.i in 1:length(trnPercent)) {
     
     f.RocCluSVM.row <- c(f.RocCluSVM.row, mean(bcw.tst.RocCluSVM.folds.f))
     a.RocCluSVM.row <- c(a.RocCluSVM.row, mean(bcw.tst.RocCluSVM.folds.a))
+    
+    f.LELC.row <- c(f.LELC.row, mean(bcw.tst.LELC.folds.f))
+    a.LELC.row <- c(a.LELC.row, mean(bcw.tst.LELC.folds.a))
   }
   
   f.NB <- rbind(f.NB, f.NB.row)
@@ -945,6 +1110,9 @@ for (var.i in 1:length(trnPercent)) {
   
   f.RocCluSVM <- rbind(f.RocCluSVM, f.RocCluSVM.row)
   a.RocCluSVM <- rbind(a.RocCluSVM, a.RocCluSVM.row)
+  
+  f.LELC <- rbind(f.LELC, f.LELC.row)
+  a.LELC <- rbind(a.LELC, a.LELC.row)
 }
 
 
@@ -966,20 +1134,24 @@ NB.f <- shiftRownameThenMean(f.NB)
 SEM.f <- shiftRownameThenMean(f.SEM)
 RocSVM.f <- shiftRownameThenMean(f.RocSVM)
 RocCluSVM.f <- shiftRownameThenMean(f.RocCluSVM)
-results.f.raw <- cbind(f.NB, f.SEM, f.RocSVM, f.RocCluSVM)
-results.f <- cbind(NB.f, SEM.f, RocSVM.f, RocCluSVM.f)
+LELC.f <- shiftRownameThenMean(f.LELC)
+results.f.raw <- rbind(f.NB, f.SEM, f.RocSVM, f.RocCluSVM, f.LELC)
+results.f <- cbind(NB.f, SEM.f, RocSVM.f, RocCluSVM.f, LELC.f)
 
 NB.a <- shiftRownameThenMean(a.NB)
 SEM.a <- shiftRownameThenMean(a.SEM)
 RocSVM.a <- shiftRownameThenMean(a.RocSVM)
 RocCluSVM.a <- shiftRownameThenMean(a.RocCluSVM)
-results.a.raw <- cbind(a.NB, a.SEM, a.RocSVM, a.RocCluSVM)
-results.a <- cbind(NB.a, SEM.a, RocSVM.a, RocCluSVM.a)
+LELC.a <- shiftRownameThenMean(a.LELC)
+results.a.raw <- rbind(a.NB, a.SEM, a.RocSVM, a.RocCluSVM, a.LELC)
+results.a <- cbind(NB.a, SEM.a, RocSVM.a, RocCluSVM.a, LELC.a)
 
 
+
+## PLOT FOR F-MEASURE
 xrange <- range(rownames(results.f))
-yrange <- range(results.f)
-plot(xrange, yrange, type = "n", xlab = "F-measure", ylab = "% of training set")
+yrange <- range(c(0.5, 1))
+plot(xrange, yrange, type = "n", xlab = "% of training set", ylab = "F-measure")
 colors <- rainbow(length(results.f))
 linetype <- c(1:length(results.f)) 
 plotchar <- seq(18,18+length(rownames(results.f)),1)
@@ -995,3 +1167,25 @@ for (j in 1:length(results.f)) {
 
 legend("bottomright", colnames(results.f), cex=0.8, col=colors,
        pch=plotchar, lty=linetype, title="F-measure Graph")
+
+
+## PLOT FOR ACCURACY
+xrange <- range(rownames(results.a))
+yrange <- range(c(0.5, 1))
+plot(xrange, yrange, type = "n", xlab = "% of training set", ylab = "Accuracy")
+colors <- rainbow(length(results.a))
+linetype <- c(1:length(results.a)) 
+plotchar <- seq(18,18+length(rownames(results.a)),1)
+
+for (j in 1:length(results.a)) {
+  for (i in 1:1) {
+    singleCol <- results.a[,j]
+    lines(rownames(results.a), singleCol, type="b", lwd=1.5,
+          lty=linetype[j], col=colors[j], pch=plotchar[j])
+    
+  }
+}
+
+legend("bottomright", colnames(results.a), cex=0.8, col=colors,
+       pch=plotchar, lty=linetype, title="Accuracy Graph")
+
