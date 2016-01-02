@@ -1,6 +1,19 @@
 source("bcw-SpyEM.R")
 source("bcw-RocchioSVM.R")
 
+
+bcw.calculateSimilarityValue <- function(DF.row, prototype1) {
+  DF.row <- DF.row[ , bcw.features]
+  prototype1 <- prototype1[ , bcw.features]
+
+  norma.x   <- apply(DF.row, 1, function(x){sqrt(sum(x^2))})
+  norma.p.k <- apply(prototype1, 1, function(x){sqrt(sum(x^2))})
+
+  sim <- sum((DF.row * prototype1) / (norma.x * norma.p.k))
+
+  return(sim)
+}
+
 bcw.getReliableNegativeWithLELC <- function(bcw.PS, bcw.US) {
   bcw.data.spy <- bcw.getReliableNegativeWithSpyTechnique(bcw.PS, bcw.US)
   bcw.data.roc <- bcw.getReliableNegativeWithRocchio(bcw.PS, bcw.US)

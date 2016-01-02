@@ -41,18 +41,22 @@ bcw.getReliableNegativeWithSpyTechnique <- function(bcw.PS, bcw.US) {
   ## results converge quite fast for BCW data set
   for (i in 1:35) {
     bcw.US$spyLabel <- predict(classifier.nb, bcw.US[, bcw.features])
-    temp <- predict(classifier.nb, bcw.US[, bcw.features], type="raw")
-    bcw.US$Pr  <- temp[,1]
-    bcw.US$PrN <- temp[,2]
 
     ## build new classifier.nb
-    classifier.nb <- naiveBayes(
-      spyLabel ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
-      data = rbind(bcw.PS, bcw.US),
-      laplace = 0)
+    if (i < 35) {
+      classifier.nb <- naiveBayes(
+        spyLabel ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
+        data = rbind(bcw.PS, bcw.US),
+        laplace = 0)
+    } else {
+      temp <- predict(classifier.nb, bcw.US[, bcw.features], type="raw")
+      bcw.US$Pr  <- temp[,1]
+      bcw.US$PrN <- temp[,2]
+    }
   }
 
   ## Probability threshold
+  ## TODO: Account for noise when using text documents
   index <- which(bcw.US$isSpy, TRUE)
   cnst.th <- min(bcw.US$Pr[index])
 
@@ -119,14 +123,14 @@ bcw.getSpyEmClassifier <- function(bcw.PS, bcw.US) {
 
   for (i in 1:35) {
     bcw.data$label <- predict(classifier.nb, bcw.data[, bcw.features])
-    temp <- predict(classifier.nb, bcw.data[, bcw.features], type="raw")
-    bcw.data$Pr  <- temp[,1]
-    bcw.data$PrN <- temp[,2]
+#     temp <- predict(classifier.nb, bcw.data[, bcw.features], type="raw")
+#     bcw.data$Pr  <- temp[,1]
+#     bcw.data$PrN <- temp[,2]
 
     ## PS does not change, reset it to correct values
     bcw.data[bcw.data$isFixed == TRUE, ]$label <- 4
-    bcw.data[bcw.data$isFixed == TRUE, ]$Pr  <- 1
-    bcw.data[bcw.data$isFixed == TRUE, ]$PrN <- 0
+#     bcw.data[bcw.data$isFixed == TRUE, ]$Pr  <- 1
+#     bcw.data[bcw.data$isFixed == TRUE, ]$PrN <- 0
 
     ## build new classifier.nb
     classifier.nb <- naiveBayes(
