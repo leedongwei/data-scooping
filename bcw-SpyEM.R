@@ -34,7 +34,7 @@ bcw.getReliableNegativeWithSpyTechnique <- function(bcw.PS, bcw.US) {
   classifier.nb <- naiveBayes(
     spyLabel ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
     data = (rbind(bcw.PS, bcw.US)),
-    laplace = 0)
+    laplace = 0.1)
 
   ## Loop till predicted results converge
   ## 35 is a sufficiently large enough number because
@@ -114,7 +114,7 @@ bcw.getSpyEmClassifier <- function(bcw.PS, bcw.US) {
   classifier.nb <- naiveBayes(
     as.factor(spyLabel) ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
     data = (rbind(bcw.PS, bcw.RN)),
-    laplace = 0)
+    laplace = 0.1)
 
   ## Cleaning up the labels
   bcw.data <- rbind(bcw.PS, bcw.RN, bcw.US)
