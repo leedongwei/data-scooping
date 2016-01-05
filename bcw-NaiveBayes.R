@@ -8,7 +8,7 @@ bcw.getNaiveBayesClassifier <- function(bcw.PS, bcw,US) {
   classifier.nb <- naiveBayes(
     as.factor(label) ~ V1+V2+V3+V4+V5+V6+V7+V8+V9,
     data = (rbind(bcw.PS, bcw.US)),
-    laplace = 0)
+    laplace = 0.1)
 
   return (classifier.nb)
 }

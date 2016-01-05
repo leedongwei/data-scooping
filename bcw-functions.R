@@ -3,6 +3,9 @@ rm(list=ls())
 library("e1071")
 library("caret")
 library("Rsolnp")
+library("doParallel")
+library("foreach")
+
 
 ## Used to alert me after a long analysis is completed
 library(beepr)
@@ -21,22 +24,17 @@ setwd("C:/Users/DongWei/Documents/Projects/data-scooping")
 ##    Naive Bayes
 source("bcw-NaiveBayes.R")
 
-
 ##    Spy-EM
 source("bcw-SpyEM.R")
 
-
 ##    Rocchio-SVM
-source("bcw.RocchioSVM.R")
-
+source("bcw-RocchioSVM.R")
 
 ##    Rocchio-Clu-SVM
 source("bcw-RocchioClusteringSVM.R")
 
-
 ##    LELC
 source("bcw-LELC.R")
-
 
 ##    Utilities
 source("bcw-utils-CalculateF.R")
@@ -73,6 +71,15 @@ V6.mean <- floor(sum(bcw$V6, na.rm=TRUE) / length(bcw$V6))
 ## Replace missing V6 values with mean
 bcw$V6[index] <- V6.mean
 bcw$V6 <- as.integer(bcw$V6)
+rm(V6.mean)
+
+
+
+################################################
+####    Set up parallel
+################################################
+#parallel.numberOfCores <- detectCores() - 1
+#registerDoParallel(parallel.numberOfCores)
 
 
 
@@ -103,6 +110,7 @@ trnPercent <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.45, 0.55, 0.65)
 
 ## Vary % of data that is labeled data
 for (var.i in 1:length(trnPercent)) {
+#foreach(var.i = 1:length(trnPercent)) %dopar% {
 
   f.NB.row          <- trnPercent[var.i]
   f.SEM.row         <- trnPercent[var.i]
@@ -159,34 +167,38 @@ for (var.i in 1:length(trnPercent)) {
 
     ################################################
     ## Build the classifiers
+    print("    Building Classifiers...")
+
     classifier.naiveBayes <- bcw.getNaiveBayesClassifier(bcw.PS, bcw.US)
     classifier.spyEm <- bcw.getSpyEmClassifier(bcw.PS, bcw.US)
-    classifier.rocchioSvm <- bcw.getRocSvmClassifier(bcw.PS, bcw.US)
-    classifier.rocchioCluSvm <- bcw.getRocCluSvmClassifier(bcw.PS, bcw.US)
-    classifier.lelc <- bcw.getLelcClassifier(bcw.PS, bcw.US)
+#     classifier.rocchioSvm <- bcw.getRocSvmClassifier(bcw.PS, bcw.US)
+#     classifier.rocchioCluSvm <- bcw.getRocCluSvmClassifier(bcw.PS, bcw.US)
+#     classifier.lelc <- bcw.getLelcClassifier(bcw.PS, bcw.US)
 
 
 
     ################################################
     ## Run the classifers on test data
+    print("    Predicting...")
     bcw.tst.NB <- bcw.tst
     bcw.tst.NB$predict <- predict(classifier.naiveBayes, bcw.tst[, bcw.features])
 
     bcw.tst.SEM <- bcw.tst
     bcw.tst.SEM$predict <- predict(classifier.spyEm, bcw.tst[, bcw.features])
 
-    bcw.tst.RocSVM <- bcw.tst
-    bcw.tst.RocSVM$predict <- predict(classifier.rocchioSvm, bcw.tst[, bcw.features])
-
-    bcw.tst.RocCluSVM <- bcw.tst
-    bcw.tst.RocCluSVM$predict <- predict(classifier.rocchioCluSvm, bcw.tst[, bcw.features])
-
-    bcw.tst.LELC <- bcw.tst
-    bcw.tst.LELC$predict <- predict(classifier.lelc, bcw.tst[, bcw.features])
+#     bcw.tst.RocSVM <- bcw.tst
+#     bcw.tst.RocSVM$predict <- predict(classifier.rocchioSvm, bcw.tst[, bcw.features])
+#
+#     bcw.tst.RocCluSVM <- bcw.tst
+#     bcw.tst.RocCluSVM$predict <- predict(classifier.rocchioCluSvm, bcw.tst[, bcw.features])
+#
+#     bcw.tst.LELC <- bcw.tst
+#     bcw.tst.LELC$predict <- predict(classifier.lelc, bcw.tst[, bcw.features])
 
 
     ################################################
     ## Calculating performance
+    print("    Calculating Performance...")
 
     ## Calculate F-measure+Accuracy for each fold
     bcw.tst.NB.folds.f <- numeric(0)
@@ -195,31 +207,34 @@ for (var.i in 1:length(trnPercent)) {
     bcw.tst.SEM.folds.f <- numeric(0)
     bcw.tst.SEM.folds.a <- numeric(0)
 
-    bcw.tst.RocSVM.folds.f <- numeric(0)
-    bcw.tst.RocSVM.folds.a <- numeric(0)
-
-    bcw.tst.RocCluSVM.folds.f <- numeric(0)
-    bcw.tst.RocCluSVM.folds.a <- numeric(0)
-
-    bcw.tst.LELC.folds.f <- numeric(0)
-    bcw.tst.LELC.folds.a <- numeric(0)
+#     bcw.tst.RocSVM.folds.f <- numeric(0)
+#     bcw.tst.RocSVM.folds.a <- numeric(0)
+#
+#     bcw.tst.RocCluSVM.folds.f <- numeric(0)
+#     bcw.tst.RocCluSVM.folds.a <- numeric(0)
+#
+#     bcw.tst.LELC.folds.f <- numeric(0)
+#     bcw.tst.LELC.folds.a <- numeric(0)
 
 
     for (i in 1:10) {
       bcw.tst.NB.folds.f <- c(bcw.tst.NB.folds.f, bcw.calculateFMeasure(bcw.tst.NB[bcw.tst.NB$fold == i, ]))
       bcw.tst.NB.folds.a <- c(bcw.tst.NB.folds.a, bcw.calculateAccuracy(bcw.tst.NB[bcw.tst.NB$fold == i, ]))
 
+      bcw.tst.NBl.folds.f <- c(bcw.tst.NBl.folds.f, bcw.calculateFMeasure(bcw.tst.NBl[bcw.tst.NBl$fold == i, ]))
+      bcw.tst.NBl.folds.a <- c(bcw.tst.NBl.folds.a, bcw.calculateAccuracy(bcw.tst.NBl[bcw.tst.NBl$fold == i, ]))
+
       bcw.tst.SEM.folds.f <- c(bcw.tst.SEM.folds.f, bcw.calculateFMeasure(bcw.tst.SEM[bcw.tst.SEM$fold == i, ]))
       bcw.tst.SEM.folds.a <- c(bcw.tst.SEM.folds.a, bcw.calculateAccuracy(bcw.tst.SEM[bcw.tst.SEM$fold == i, ]))
 
-      bcw.tst.RocSVM.folds.f <- c(bcw.tst.RocSVM.folds.f, bcw.calculateFMeasure(bcw.tst.RocSVM[bcw.tst.NB$fold == i, ]))
-      bcw.tst.RocSVM.folds.a <- c(bcw.tst.RocSVM.folds.a, bcw.calculateAccuracy(bcw.tst.RocSVM[bcw.tst.NB$fold == i, ]))
-
-      bcw.tst.RocCluSVM.folds.f <- c(bcw.tst.RocCluSVM.folds.f, bcw.calculateFMeasure(bcw.tst.RocCluSVM[bcw.tst.RocCluSVM$fold == i, ]))
-      bcw.tst.RocCluSVM.folds.a <- c(bcw.tst.RocCluSVM.folds.a, bcw.calculateAccuracy(bcw.tst.RocCluSVM[bcw.tst.RocCluSVM$fold == i, ]))
-
-      bcw.tst.LELC.folds.f <- c(bcw.tst.LELC.folds.f, bcw.calculateFMeasure(bcw.tst.LELC[bcw.tst.LELC$fold == i, ]))
-      bcw.tst.LELC.folds.a <- c(bcw.tst.LELC.folds.a, bcw.calculateAccuracy(bcw.tst.LELC[bcw.tst.LELC$fold == i, ]))
+#       bcw.tst.RocSVM.folds.f <- c(bcw.tst.RocSVM.folds.f, bcw.calculateFMeasure(bcw.tst.RocSVM[bcw.tst.NB$fold == i, ]))
+#       bcw.tst.RocSVM.folds.a <- c(bcw.tst.RocSVM.folds.a, bcw.calculateAccuracy(bcw.tst.RocSVM[bcw.tst.NB$fold == i, ]))
+#
+#       bcw.tst.RocCluSVM.folds.f <- c(bcw.tst.RocCluSVM.folds.f, bcw.calculateFMeasure(bcw.tst.RocCluSVM[bcw.tst.RocCluSVM$fold == i, ]))
+#       bcw.tst.RocCluSVM.folds.a <- c(bcw.tst.RocCluSVM.folds.a, bcw.calculateAccuracy(bcw.tst.RocCluSVM[bcw.tst.RocCluSVM$fold == i, ]))
+#
+#       bcw.tst.LELC.folds.f <- c(bcw.tst.LELC.folds.f, bcw.calculateFMeasure(bcw.tst.LELC[bcw.tst.LELC$fold == i, ]))
+#       bcw.tst.LELC.folds.a <- c(bcw.tst.LELC.folds.a, bcw.calculateAccuracy(bcw.tst.LELC[bcw.tst.LELC$fold == i, ]))
     }
     f.NB.row <- c(f.NB.row, mean(bcw.tst.NB.folds.f))
     a.NB.row <- c(a.NB.row, mean(bcw.tst.NB.folds.a))
@@ -227,14 +242,14 @@ for (var.i in 1:length(trnPercent)) {
     f.SEM.row <- c(f.SEM.row, mean(bcw.tst.SEM.folds.f))
     a.SEM.row <- c(a.SEM.row, mean(bcw.tst.SEM.folds.a))
 
-    f.RocSVM.row <- c(f.RocSVM.row, mean(bcw.tst.RocSVM.folds.f))
-    a.RocSVM.row <- c(a.RocSVM.row, mean(bcw.tst.RocSVM.folds.a))
-
-    f.RocCluSVM.row <- c(f.RocCluSVM.row, mean(bcw.tst.RocCluSVM.folds.f))
-    a.RocCluSVM.row <- c(a.RocCluSVM.row, mean(bcw.tst.RocCluSVM.folds.a))
-
-    f.LELC.row <- c(f.LELC.row, mean(bcw.tst.LELC.folds.f))
-    a.LELC.row <- c(a.LELC.row, mean(bcw.tst.LELC.folds.a))
+#     f.RocSVM.row <- c(f.RocSVM.row, mean(bcw.tst.RocSVM.folds.f))
+#     a.RocSVM.row <- c(a.RocSVM.row, mean(bcw.tst.RocSVM.folds.a))
+#
+#     f.RocCluSVM.row <- c(f.RocCluSVM.row, mean(bcw.tst.RocCluSVM.folds.f))
+#     a.RocCluSVM.row <- c(a.RocCluSVM.row, mean(bcw.tst.RocCluSVM.folds.a))
+#
+#     f.LELC.row <- c(f.LELC.row, mean(bcw.tst.LELC.folds.f))
+#     a.LELC.row <- c(a.LELC.row, mean(bcw.tst.LELC.folds.a))
   }
 
   f.NB <- rbind(f.NB, f.NB.row)
@@ -243,15 +258,16 @@ for (var.i in 1:length(trnPercent)) {
   f.SEM <- rbind(f.SEM, f.SEM.row)
   a.SEM <- rbind(a.SEM, a.SEM.row)
 
-  f.RocSVM <- rbind(f.RocSVM, f.RocSVM.row)
-  a.RocSVM <- rbind(a.RocSVM, a.RocSVM.row)
-
-  f.RocCluSVM <- rbind(f.RocCluSVM, f.RocCluSVM.row)
-  a.RocCluSVM <- rbind(a.RocCluSVM, a.RocCluSVM.row)
-
-  f.LELC <- rbind(f.LELC, f.LELC.row)
-  a.LELC <- rbind(a.LELC, a.LELC.row)
+#   f.RocSVM <- rbind(f.RocSVM, f.RocSVM.row)
+#   a.RocSVM <- rbind(a.RocSVM, a.RocSVM.row)
+#
+#   f.RocCluSVM <- rbind(f.RocCluSVM, f.RocCluSVM.row)
+#   a.RocCluSVM <- rbind(a.RocCluSVM, a.RocCluSVM.row)
+#
+#   f.LELC <- rbind(f.LELC, f.LELC.row)
+#   a.LELC <- rbind(a.LELC, a.LELC.row)
 }
+#stopImplicitCluster()
 
 
 ## Utility function
