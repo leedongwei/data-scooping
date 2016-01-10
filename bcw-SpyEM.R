@@ -9,7 +9,7 @@ bcw.getReliableNegativeWithSpyTechnique <- function(bcw.PS, bcw.US) {
 
   ## Value of s is taken from page 3 of Liu, Dai, Li, Lee, Yu (2003)
   cnst.s <- 0.15
-  temp <- sample(nrow(bcw.PS), cnst.s * nrow(bcw.PS))
+  temp <- sample(nrow(bcw.PS), ceiling(cnst.s * nrow(bcw.PS)))
 
   ## Copy spies into US
   bcw.spy <- bcw.PS[temp, ]
