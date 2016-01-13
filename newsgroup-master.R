@@ -147,13 +147,14 @@ label.PS.train.labelled   <- dongwei.labelClassToId("positive", data.PS.train.la
 label.PS.train.unlabelled <- dongwei.labelClassToId("negative", data.PS.train.unlabelled)
 label.NS.train            <- dongwei.labelClassToId("negative", data.NS.train)
 
-data.train.all      <- c(data.NS.train,          data.PS.train.unlabelled,      data.PS.train.labelled)
-class.train.all     <- rbind(class.NS.train,     class.PS.train.unlabelled,     class.PS.train.labelled)
-label.train.all     <- rbind(label.NS.train,     label.PS.train.unlabelled,     label.PS.train.labelled)
-
-data.train.US       <- c(data.NS.train,          data.PS.train.unlabelled)
-class.train.US      <- rbind(class.NS.train,     class.PS.train.unlabelled)
-label.train.US      <- rbind(label.NS.train,     label.PS.train.unlabelled)
+# COMBINE BEFORE CLEANING
+# data.train.all      <- c(data.NS.train,          data.PS.train.unlabelled,      data.PS.train.labelled)
+# class.train.all     <- rbind(class.NS.train,     class.PS.train.unlabelled,     class.PS.train.labelled)
+# label.train.all     <- rbind(label.NS.train,     label.PS.train.unlabelled,     label.PS.train.labelled)
+# 
+# data.train.US       <- c(data.NS.train,          data.PS.train.unlabelled)
+# class.train.US      <- rbind(class.NS.train,     class.PS.train.unlabelled)
+# label.train.US      <- rbind(label.NS.train,     label.PS.train.unlabelled)
 
 
 class.train.all    <- class.train.all[sort(rownames(class.train.all)),,drop=FALSE]
@@ -187,7 +188,7 @@ tdm.test <- tdm.test[sort(rownames(tdm.test)),,drop=FALSE]
 tdm.train.all.matrix        <- as.matrix(tdm.train.all)
 tdm.train.US.matrix         <- as.matrix(tdm.train.US)
 
-model <- naiveBayes(tdm.train.all.matrix, class.train.all, laplace=0.1)
+model <- naiveBayes(tdm.train.all.matrix, as.factor(class.train.all), laplace=0.1)
 
 
 testResult1 <- predict(model, tdm.train.US.matrix, type="raw")

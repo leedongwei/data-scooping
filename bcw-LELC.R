@@ -1,5 +1,6 @@
 source("bcw-SpyEM.R")
 source("bcw-RocchioSVM.R")
+library("plyr")
 
 
 bcw.calculateSimilarityValue <- function(DF.row, prototype1) {

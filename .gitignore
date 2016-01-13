@@ -1,12 +1,16 @@
 # Do not push data files to Github
 data/
 
+# Do not push output files to Github
+bcw-output.txt
+
 # History files
 .Rhistory
 .Rapp.history
 
 # Session Data files
 .RData
+*.RData
 
 # Example code in package build process
 *-Ex.R
