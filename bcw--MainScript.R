@@ -5,7 +5,6 @@ library("caret")
 library("Rsolnp")
 library("doParallel")
 library("foreach")
-library("plyr")
 
 ## Used to alert me after a long analysis is completed
 library(beepr)
@@ -97,70 +96,41 @@ registerDoParallel(parallel.cluster)
 ####    Start testing here
 
 
-trnPercent <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.45, 0.55, 0.65)
+# trnPercent <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.45, 0.55, 0.65)
+trnPercent <- c(0.05, 0.10, 0.55, 0.65)
 
 
 ## Set up data storage for F-measure and Accuracy
-# bcw.fmeasure <- data.frame(NB = rep(-1, length(trnPercent)),
-#                            SEM = rep(-1, length(trnPercent)),
-#                            RocSVM = rep(-1, length(trnPercent)),
-#                            RocCluSvm = rep(-1, length(trnPercent)),
-#                            LELC = rep(-1, length(trnPercent)),
-#                            row.names = trnPercent)
-#
-# bcw.accuracy <- data.frame(NB = rep(-1, length(trnPercent)),
-#                            SEM = rep(-1, length(trnPercent)),
-#                            RocSVM = rep(-1, length(trnPercent)),
-#                            RocCluSvm = rep(-1, length(trnPercent)),
-#                            LELC = rep(-1, length(trnPercent)),
-#                            row.names = trnPercent)
-f.NB <- numeric(0)
-f.SEM <- numeric(0)
-f.RocSVM <- numeric(0)
-f.RocCluSVM <- numeric(0)
-f.LELC <- numeric(0)
-f.globalSPUL <- numeric(0)
-f.localSPUL <- numeric(0)
-a.NB <- numeric(0)
-a.SEM <- numeric(0)
-a.RocSVM <- numeric(0)
-a.RocCluSVM <- numeric(0)
-a.LELC <- numeric(0)
-a.globalSPUL <- numeric(0)
-a.localSPUL <- numeric(0)
+bcw.fmeasure <- data.frame(NB = numeric(0),
+                                 SEM = numeric(0),
+                                 RocSVM = numeric(0),
+                                 RocCluSvm = numeric(0),
+                                 LELC = numeric(0))
+
+bcw.accuracy <- data.frame(NB = numeric(0),
+                                 SEM = numeric(0),
+                                 RocSVM = numeric(0),
+                                 RocCluSvm = numeric(0),
+                                 LELC = numeric(0))
 
 ## Vary % of data that is labeled data
 for (var.i in 1:length(trnPercent)) {
-#   bcw.fmeasure.row <- data.frame(NB = rep(-1, length(trnPercent)),
-#                                  SEM = rep(-1, length(trnPercent)),
-#                                  RocSVM = rep(-1, length(trnPercent)),
-#                                  RocCluSvm = rep(-1, length(trnPercent)),
-#                                  LELC = rep(-1, length(trnPercent)))
-#
-#   bcw.accuracy.row <- data.frame(NB = rep(-1, length(trnPercent)),
-#                                  SEM = rep(-1, length(trnPercent)),
-#                                  RocSVM = rep(-1, length(trnPercent)),
-#                                  RocCluSvm = rep(-1, length(trnPercent)),
-#                                  LELC = rep(-1, length(trnPercent)))
 
-  f.NB.row          <- trnPercent[var.i]
-  f.SEM.row         <- trnPercent[var.i]
-  f.RocSVM.row      <- trnPercent[var.i]
-  f.RocCluSVM.row   <- trnPercent[var.i]
-  f.LELC.row        <- trnPercent[var.i]
-  f.globalSPUL.row  <- trnPercent[var.i]
-  f.localSPUL.row   <- trnPercent[var.i]
-  a.NB.row          <- trnPercent[var.i]
-  a.SEM.row         <- trnPercent[var.i]
-  a.RocSVM.row      <- trnPercent[var.i]
-  a.RocCluSVM.row   <- trnPercent[var.i]
-  a.LELC.row        <- trnPercent[var.i]
-  a.globalSPUL.row  <- trnPercent[var.i]
-  a.localSPUL.row   <- trnPercent[var.i]
+  bcw.fmeasure.row <- data.frame(NB = numeric(0),
+                                 SEM = numeric(0),
+                                 RocSVM = numeric(0),
+                                 RocCluSvm = numeric(0),
+                                 LELC = numeric(0))
+
+  bcw.accuracy.row <- data.frame(NB = numeric(0),
+                                 SEM = numeric(0),
+                                 RocSVM = numeric(0),
+                                 RocCluSvm = numeric(0),
+                                 LELC = numeric(0))
 
   ## Avoid sampling bias, repeat 10 times
   #for (var.j in 1:10) {
-  foreach(var.j = 1:10,
+  foreach(var.j = 1:3,
           .packages = c("e1071", "caret", "Rsolnp", "plyr")) %dopar% {
 
     cat("TrnPct", trnPercent[var.i], " |  Sample", var.j, "of 10\n")
@@ -269,36 +239,29 @@ for (var.i in 1:length(trnPercent)) {
       bcw.tst.LELC.folds.f <- c(bcw.tst.LELC.folds.f, bcw.calculateFMeasure(bcw.tst.LELC[bcw.tst.LELC$fold == i, ]))
       bcw.tst.LELC.folds.a <- c(bcw.tst.LELC.folds.a, bcw.calculateAccuracy(bcw.tst.LELC[bcw.tst.LELC$fold == i, ]))
     }
-    f.NB.row <- c(f.NB.row, mean(bcw.tst.NB.folds.f))
-    a.NB.row <- c(a.NB.row, mean(bcw.tst.NB.folds.a))
 
-    f.SEM.row <- c(f.SEM.row, mean(bcw.tst.SEM.folds.f))
-    a.SEM.row <- c(a.SEM.row, mean(bcw.tst.SEM.folds.a))
+    f.row <- c(mean(bcw.tst.NB.folds.f),
+              mean(bcw.tst.SEM.folds.f),
+              mean(bcw.tst.RocSVM.folds.f),
+              mean(bcw.tst.RocCluSVM.folds.f),
+              mean(bcw.tst.LELC.folds.f))
 
-    f.RocSVM.row <- c(f.RocSVM.row, mean(bcw.tst.RocSVM.folds.f))
-    a.RocSVM.row <- c(a.RocSVM.row, mean(bcw.tst.RocSVM.folds.a))
+    a.row <- c(mean(bcw.tst.NB.folds.a),
+              mean(bcw.tst.SEM.folds.a),
+              mean(bcw.tst.RocSVM.folds.a),
+              mean(bcw.tst.RocCluSVM.folds.a),
+              mean(bcw.tst.LELC.folds.a))
 
-    f.RocCluSVM.row <- c(f.RocCluSVM.row, mean(bcw.tst.RocCluSVM.folds.f))
-    a.RocCluSVM.row <- c(a.RocCluSVM.row, mean(bcw.tst.RocCluSVM.folds.a))
 
-    f.LELC.row <- c(f.LELC.row, mean(bcw.tst.LELC.folds.f))
-    a.LELC.row <- c(a.LELC.row, mean(bcw.tst.LELC.folds.a))
+    bcw.fmeasure.row <- rbind(bcw.fmeasure.row, f.row)
+    bcw.accuracy.row <- rbind(bcw.accuracy.row, a.row)
   }
 
-  f.NB <- rbind(f.NB, f.NB.row)
-  a.NB <- rbind(a.NB, a.NB.row)
+  bcw.fmeasure <- rbind(bcw.fmeasure,
+                        apply(bcw.fmeasure.row, 2, mean))
 
-  f.SEM <- rbind(f.SEM, f.SEM.row)
-  a.SEM <- rbind(a.SEM, a.SEM.row)
-
-  f.RocSVM <- rbind(f.RocSVM, f.RocSVM.row)
-  a.RocSVM <- rbind(a.RocSVM, a.RocSVM.row)
-
-  f.RocCluSVM <- rbind(f.RocCluSVM, f.RocCluSVM.row)
-  a.RocCluSVM <- rbind(a.RocCluSVM, a.RocCluSVM.row)
-
-  f.LELC <- rbind(f.LELC, f.LELC.row)
-  a.LELC <- rbind(a.LELC, a.LELC.row)
+  bcw.accuracy <- rbind(bcw.fmeasure,
+                        apply(bcw.accuracy.row, 2, mean))
 }
 
 ## Keep speakers on for beeper alert

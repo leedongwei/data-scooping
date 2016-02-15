@@ -4,11 +4,13 @@ lapply(libs, require, character.only=TRUE)
 
 setwd("C:/Users/DongWei/Documents/Projects/data-scooping/data/20news-bydate")
 
+# setwd("C:/Users/DongWei/Documents/Projects/data-scooping")
 
 
 
 
-################################################
+
+###############################################
 #### Create Utility functions
 ################################################
 dongwei.cleanData <- function(dataCorpus) {
@@ -148,13 +150,13 @@ label.PS.train.unlabelled <- dongwei.labelClassToId("negative", data.PS.train.un
 label.NS.train            <- dongwei.labelClassToId("negative", data.NS.train)
 
 # COMBINE BEFORE CLEANING
-# data.train.all      <- c(data.NS.train,          data.PS.train.unlabelled,      data.PS.train.labelled)
-# class.train.all     <- rbind(class.NS.train,     class.PS.train.unlabelled,     class.PS.train.labelled)
-# label.train.all     <- rbind(label.NS.train,     label.PS.train.unlabelled,     label.PS.train.labelled)
-# 
-# data.train.US       <- c(data.NS.train,          data.PS.train.unlabelled)
-# class.train.US      <- rbind(class.NS.train,     class.PS.train.unlabelled)
-# label.train.US      <- rbind(label.NS.train,     label.PS.train.unlabelled)
+data.train.all      <- c(data.NS.train,          data.PS.train.unlabelled,      data.PS.train.labelled)
+class.train.all     <- rbind(class.NS.train,     class.PS.train.unlabelled,     class.PS.train.labelled)
+label.train.all     <- rbind(label.NS.train,     label.PS.train.unlabelled,     label.PS.train.labelled)
+
+data.train.US       <- c(data.NS.train,          data.PS.train.unlabelled)
+class.train.US      <- rbind(class.NS.train,     class.PS.train.unlabelled)
+label.train.US      <- rbind(label.NS.train,     label.PS.train.unlabelled)
 
 
 class.train.all    <- class.train.all[sort(rownames(class.train.all)),,drop=FALSE]
@@ -168,15 +170,15 @@ label.train.US <- label.train.US[sort(rownames(label.train.US)),,drop=FALSE]
 ####    Create document term matrix
 ################################################
 tdm.train.all <- t(TermDocumentMatrix(data.train.all))
-tdm.train.all <- removeSparseTerms(tdm.train.all, 0.9)
+tdm.train.all <- removeSparseTerms(tdm.train.all, 0.99)
 tdm.train.all <- tdm.train.all[sort(rownames(tdm.train.all)),,drop=FALSE]
 
 tdm.train.US <- t(TermDocumentMatrix(data.train.US))
-tdm.train.US <- removeSparseTerms(tdm.train.US, 0.9)
+tdm.train.US <- removeSparseTerms(tdm.train.US, 0.99)
 tdm.train.US <- tdm.train.US[sort(rownames(tdm.train.US)),,drop=FALSE]
 
 tdm.test <- t(TermDocumentMatrix(data.test))
-tdm.test <- removeSparseTerms(tdm.test, 0.9)
+tdm.test <- removeSparseTerms(tdm.test, 0.99)
 tdm.test <- tdm.test[sort(rownames(tdm.test)),,drop=FALSE]
 
 
@@ -188,9 +190,7 @@ tdm.test <- tdm.test[sort(rownames(tdm.test)),,drop=FALSE]
 tdm.train.all.matrix        <- as.matrix(tdm.train.all)
 tdm.train.US.matrix         <- as.matrix(tdm.train.US)
 
-model <- naiveBayes(tdm.train.all.matrix, as.factor(class.train.all), laplace=0.1)
 
+source("newsgroup-NaiveBayes.R")
 
-testResult1 <- predict(model, tdm.train.US.matrix, type="raw")
-testResult2 <- predict(model, tdm.train.US.matrix)
-
+# classifier.nb <- ngp.getNaiveBayesClassifier()
