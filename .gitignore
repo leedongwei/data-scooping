@@ -3,6 +3,7 @@ data/
 
 # Do not push output files to Github
 bcw-output.txt
+newsgroup-output.txt
 
 # History files
 .Rhistory
