@@ -17,11 +17,20 @@ library(beepr)
 
 
 
-setwd("C:/Users/DongWei/Documents/Projects/data-scooping/20news-bydate-test")
+setwd("C:/Users/DongWei/Documents/Projects/data-scooping/")
 
-source("Spy_EM.R")
+
+
+source("newsgroup-utils-perf.R")
+source("newsgroup-utils-corpus.R")
+source("newsgroup-utils-dtm.R")
+
+# source("Spy_EM.R")
+
+
 
 utils.createParallelCluster <- function() {
+  cat("Creating parallel cluster...\n")
   numberOfCores <- max(1, detectCores() - 1)
   cluster <- makeCluster(numberOfCores,
                          outfile = "newsgroup-output.txt")
@@ -36,201 +45,22 @@ utils.convertFactorToNumeric <- function(factor) {
 
 utils.plotGraph <- function(ngp.results, nameOfGraph) {
   xrange <- range(rownames(ngp.results))
-  yrange <- range(c(0.5, 1))
+  yrange <- range(c(0, 1))
 
   plot(xrange, yrange, type = "n", xlab = "% of training set", ylab=nameOfGraph)
-  colors <- rainbow(length(ngp.results))
-  linetype <- c(1:length(ngp.results))
+  colors <- rainbow(ncol(ngp.results))
+  linetype <- c(1:ncol(ngp.results))
   plotchar <- seq(18,18+length(rownames(ngp.results)),1)
 
-  for (j in 1:length(ngp.results)) {
-    for (i in 1:1) {
+  for (j in 1:ncol(ngp.results)) {
       singleCol <- ngp.results[,j]
-      lines(rownames(ngp.results), singleCol, type="b", lwd=1.5,
+      lines(rownames(ngp.results), as.numeric(singleCol), type="b", lwd=1.5,
             lty=linetype[j], col=colors[j], pch=plotchar[j])
-
-    }
   }
 
   legend("bottomright", colnames(ngp.results), cex=0.8, col=colors,
          pch=plotchar, lty=linetype, title=paste(nameOfGraph, "Graph"))
 }
-
-
-# utils.prepCorpora <- function(dirVector) {
-#   corpora <- lapply(dirVector, function(dirName) {
-#     return(utils.prepCorpus(dirName))
-#   })
-#   names(corpora) = dirVector
-#   return(corpora)
-# }
-
-utils.prepCorpora.parallel <- function(cluster, dirVector) {
-  ## Set up for parLapply
-  clusterExport(cluster,
-                c("utils.prepCorpus", "utils.cleanCorpus"))
-  clusterEvalQ(cluster,
-               c(library(tm), library(tm.plugin.mail), library(parallel)))
-
-  corpora <- parLapply(cluster, dirVector, function(dirName) {
-    cat("Reading docs from ", dirName, "\n", sep="")
-    return(utils.prepCorpus(dirName))
-  })
-  names(corpora) = dirVector
-  return(corpora)
-}
-
-utils.prepCorpus <- function(dirName) {
-  corpus <- Corpus(
-              DirSource(
-                paste("data/20news-bydate/", dirName, sep = "")),
-              readerControl=list(reader=readMail, language="en_US"))
-  names(corpus) <- dirName
-  return (utils.cleanCorpus(corpus))
-}
-
-utils.cleanCorpus <- function(corpus) {
-  removeStopWords <- function(doc) {
-    return(removeWords(doc, stopwords("english")))
-  }
-  convert <- function(t) {
-    return(iconv(t, "ISO-8859-1", "UTF-8"))
-  }
-  data <- corpus
-  data <- tm_map(data, removeSignature)
-  data <- tm_map(data, convert)
-  data <- tm_map(data, PlainTextDocument)
-  data <- tm_map(data, content_transformer(tolower))
-  data <- tm_map(data, removeStopWords)
-  data <- tm_map(data, stripWhitespace)
-  data <- tm_map(data, removeNumbers)
-  data <- tm_map(data, removePunctuation)
-  data <- tm_map(data, stemDocument)
-  return (data)
-}
-
-
-utils.createDtmFromCorpora <- function(corpora, sparsenessThreshold) {
-  dtms = utils.createDtms(corpora)
-  dtm = do.call(c, dtms)
-  dtm <- utils.filterTerms(dtm, sparsenessThreshold)
-  dtm <- utils.resetDtmColumnsNames(dtm)
-  return (dtm)
-}
-
-utils.createDtms <- function(corpora) {
-  count <- as.integer(1:length(corpora))
-  corporaNames <- names(corpora)
-
-  data <- lapply(count, function(i) {
-    ## weird hack to label each document with corpus name
-    return (utils.createDtm(corpora[[i]], corporaNames[i]))
-  })
-
-  names(data) = names(corpora)
-  return(data)
-}
-
-utils.createDtm <- function(corpus, corpusName) {
-  m <- DocumentTermMatrix(corpus)
-  rownames(m) <- rep(corpusName, dim(m)[1])
-  return(m)
-}
-
-utils.resetDtmColumnsNames <- function(dtm) {
-  count <- length(colnames(dtm))
-  names <- sapply(1:count, function(num) {
-    paste("V", as.String(num), sep="")
-  })
-
-  colnames(dtm) <- names
-  return(dtm)
-}
-
-utils.extractDtmClasses <- function(dtm) {
-  classes <- as.data.frame(rownames(dtm))
-  colnames(classes) <- c("className")
-  rownames(classes) <- sapply(1:nrow(classes), function(nn) {
-    return(paste("D", nn, sep=""))
-  })
-
-  return(classes)
-}
-
-utils.resetDtmDocNames <- function(dtm) {
-  newnames <- as.character(1:nrow(dtm))
-  rownames(dtm) <- sapply(newnames, function(nn) {
-    return(paste("D", nn, sep=""))
-  })
-
-  return(dtm)
-}
-
-
-utils.filterTerms <- function(x, minDocFreq) {
-  # select terms with frequency >= minDocFreq
-  # inputs:
-  #   x, the DocumentTermMatrix matrix;
-  #   minDocFreq, the minimum required frequency
-  # returns:
-  #   the modified DocumentTermMatrix matrix
-  stopifnot(inherits(x, c("DocumentTermMatrix", "TermDocumentMatrix")),
-            is.numeric(minDocFreq), minDocFreq > 0, minDocFreq < max(dim(x)))
-
-  if (inherits(x, "DocumentTermMatrix")) {
-    m <- t(x)
-  } else {
-    m <- x
-  }
-
-  t <- table(m$i) > minDocFreq
-
-  termIndex <- as.numeric(names(t[t]))
-  if (inherits(x, 'DocumentTermMatrix')) {
-    return(x[, termIndex])
-  } else {
-    return(x[termIndex, ])
-  }
-}
-
-utils.getDocsForClass <- function(dtm, dtm.class, classVector) {
-  index <- sapply(classVector, function(class) {
-     which(dtm.class == class)
-  })
-  index <- unlist(index, use.names = FALSE)
-  documentId <- rownames(dtm.class)[index]
-  return(documentId)
-}
-
-## True positives (TP) - Positive labeled correctly
-## True negatives (TN) - Negative labeled correctly
-## False positives (FP) - Positive labeled wrongly
-## False negatives (FN) - Negative labeled wrongly
-utils.calculateFMeasure <- function(ngp.results) {
-  TP <- nrow(ngp.results[(ngp.results$class == 1 & ngp.results$predict == 1), ])
-  TN <- nrow(ngp.results[(ngp.results$class == -1 & ngp.results$predict == -1), ])
-  FP <- nrow(ngp.results[(ngp.results$class == -1 & ngp.results$predict == 1), ])
-  FN <- nrow(ngp.results[(ngp.results$class == 1 & ngp.results$predict == -1), ])
-
-  Precision <- TP / (TP+FP)
-  Recall    <- TP / (TP+FN)
-
-  return ((2 * Precision * Recall) / (Precision + Recall))
-}
-
-utils.calculateAccuracy <- function(ngp.results) {
-  TP <- nrow(ngp.results[(ngp.results$class == 1 & ngp.results$predict == 1), ])
-  TN <- nrow(ngp.results[(ngp.results$class == -1 & ngp.results$predict == -1), ])
-  FP <- nrow(ngp.results[(ngp.results$class == -1 & ngp.results$predict == 1), ])
-  FN <- nrow(ngp.results[(ngp.results$class == 1 & ngp.results$predict == -1), ])
-
-  Accuracy <- (TP+TN) / (TP+FP+TN+FN)
-  return (Accuracy)
-}
-
-
-
-
 
 
 
@@ -241,7 +71,7 @@ utils.calculateAccuracy <- function(ngp.results) {
 ##############################################
 ####    Start of code
 ##############################################
-file.remove("newsgroup-output.txt")
+# file.remove("newsgroup-output.txt")
 parallel.cluster <- utils.createParallelCluster()
 
 dir.all <- c("alt.atheism",              "comp.graphics",
@@ -265,7 +95,8 @@ dir.positive <- c( "comp.graphics",
 
 
 ## Read to corpus, convert into DTM and clean it
-# ngp.data <- utils.prepCorpora(dir.selected)
+## TODO: Set data folder in "newsgroup-utils-corpus.R/utils-prepCorpus"
+# ngp.data <- utils.prepCorpora(dir.selected)   Non-parallel code
 ngp.data <- utils.prepCorpora.parallel(parallel.cluster, dir.selected)
 ngp.dtm  <- utils.createDtmFromCorpora(ngp.data, 35)
 
@@ -275,7 +106,7 @@ ngp.class <- utils.extractDtmClasses(ngp.dtm)
 ngp.dtm <- utils.resetDtmDocNames(ngp.dtm)
 
 ## Split into Positive and Negative
-ngp.dtm.index <- utils.getDocsForClass(ngp.dtm, ngp.class, dir.positive)
+ngp.dtm.index <- utils.getDocsIdForClass(ngp.dtm, ngp.class, dir.positive)
 ngp.PS <- ngp.dtm[ngp.dtm.index, ]
 ngp.NS <- ngp.dtm[!(rownames(ngp.dtm) %in% ngp.dtm.index), ]
 
@@ -300,8 +131,11 @@ cat("Read data completed, starting loop")
 ## Percentage of training data to be set as labeled
 # TODO: Set correct values after code is stable
 # trnLabeled <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.45, 0.55, 0.65)
-trnLabeled <- c(0.10, 0.30, 0.65)
-repSamples <- 5
+# trnLabeled <- c(0.10, 0.30, 0.65)
+# repSamples <- 4
+trnLabeled <- c(0.30, 0.65)
+repSamples <- 3
+
 namesOfClassifiers <- c("nBayes", "Spy-EM")
 numberOfClassifiers <- length(namesOfClassifiers)
 # var.i <- 1
@@ -334,7 +168,6 @@ for (var.i in 1:length(trnLabeled)) {
           .packages = c("tm", "e1071", "SnowballC", "beepr")) %dopar% {
 
     cat("TrnPct", trnLabeled[var.i], " |  Sample", var.j, "of 10\n")
-
     ## Split for training/testing sets, 60% of data to be set as training
     temp <- sample(1:nrow(ngp.PS), 0.6 * nrow(ngp.PS), replace = FALSE)
     ngp.trn.PS <- ngp.PS[temp, ]
@@ -400,21 +233,29 @@ for (var.i in 1:length(trnLabeled)) {
     ################################################
     ## Run the classifers on test data
     cat("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
-    results.nb <- predict(classifer.nb, ngp.tstM)
+    # results.nb <- predict(classifer.nb, ngp.tstM)
 
 
     ################################################
     ## Calculating performance
     cat("    Calculating Performance: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
 
-    ngp.tst.class$predict <- utils.convertFactorToNumeric(results.nb)
+    ## Naive-Bayes
+    # ngp.tst.class$predict <- utils.convertFactorToNumeric(results.nb)
     ngp.fmeasure.samples[var.j, 1] <- utils.calculateFMeasure(ngp.tst.class)
     ngp.accuracy.samples[var.j, 1] <- utils.calculateAccuracy(ngp.tst.class)
 
+    ## Spy-EM
+    ngp.fmeasure.samples[var.j, 2] <- (var.j + var.i) / 10
+    ngp.accuracy.samples[var.j, 2] <- (var.j + var.i) / 10
+
+
+    ## Remove biggest data variables from memory
+    rm(ngp.trnM, ngp.tstM)
   }
 
   ## Mean results from 10 random samples, and store in main matrix
-  for (i in numberOfClassifiers) {
+  for (i in 1:numberOfClassifiers) {
     ngp.fmeasure.results[var.i, i] <- mean(ngp.fmeasure.samples[, i])
     ngp.accuracy.results[var.i, i] <- mean(ngp.accuracy.samples[, i])
   }
