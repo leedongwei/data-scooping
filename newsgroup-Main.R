@@ -1,3 +1,9 @@
+# install.packages(
+#   c("tm", "tm.plugin.mail", 
+#     "e1071", "SnowballC", "caret"
+#     "parallel", "doParallel", "foreach","snow",
+#     "beepr"))
+
 rm(list=ls())
 
 ## Essential libraries
@@ -5,6 +11,7 @@ library(tm)
 library(tm.plugin.mail)
 library(e1071)
 library(SnowballC)
+library(caret)
 
 ## Parallel libraries
 library(parallel)
@@ -17,50 +24,19 @@ library(beepr)
 
 
 
-setwd("C:/Users/DongWei/Documents/Projects/data-scooping/")
+# setwd("C:/Users/DongWei/Documents/Projects/data-scooping/")
+setwd("C:/Users/DongWei/Desktop/data-scooping")
 
 
 
-source("newsgroup-utils-perf.R")
 source("newsgroup-utils-corpus.R")
 source("newsgroup-utils-dtm.R")
+source("newsgroup-utils-perf.R")
+source("newsgroup-utils-functions.R")
 
 # source("Spy_EM.R")
 
 
-
-utils.createParallelCluster <- function() {
-  cat("Creating parallel cluster...\n")
-  numberOfCores <- max(1, detectCores() - 1)
-  cluster <- makeCluster(numberOfCores,
-                         outfile = "newsgroup-output.txt")
-
-  cat("Created parallel cluster with ", numberOfCores, " cores", sep="")
-  return(cluster)
-}
-
-utils.convertFactorToNumeric <- function(factor) {
-  as.numeric(levels(factor))[factor]
-}
-
-utils.plotGraph <- function(ngp.results, nameOfGraph) {
-  xrange <- range(rownames(ngp.results))
-  yrange <- range(c(0, 1))
-
-  plot(xrange, yrange, type = "n", xlab = "% of training set", ylab=nameOfGraph)
-  colors <- rainbow(ncol(ngp.results))
-  linetype <- c(1:ncol(ngp.results))
-  plotchar <- seq(18,18+length(rownames(ngp.results)),1)
-
-  for (j in 1:ncol(ngp.results)) {
-      singleCol <- ngp.results[,j]
-      lines(rownames(ngp.results), as.numeric(singleCol), type="b", lwd=1.5,
-            lty=linetype[j], col=colors[j], pch=plotchar[j])
-  }
-
-  legend("bottomright", colnames(ngp.results), cex=0.8, col=colors,
-         pch=plotchar, lty=linetype, title=paste(nameOfGraph, "Graph"))
-}
 
 
 
@@ -96,10 +72,12 @@ dir.positive <- c( "comp.graphics",
 
 ## Read to corpus, convert into DTM and clean it
 ## TODO: Set data folder in "newsgroup-utils-corpus.R/utils-prepCorpus"
-# ngp.data <- utils.prepCorpora(dir.selected)   Non-parallel code
+# Non-parallel code: ngp.data <- utils.prepCorpora(dir.selected)   
 ngp.data <- utils.prepCorpora.parallel(parallel.cluster, dir.selected)
 ngp.dtm  <- utils.createDtmFromCorpora(ngp.data, 35)
 
+## Parallel initiated in utils.prepCorpora
+stopCluster(parallel.cluster)
 
 ## Reset document ID and extract class names
 ngp.class <- utils.extractDtmClasses(ngp.dtm)
@@ -116,30 +94,139 @@ ngp.class[rownames(ngp.PS), ]$class <- 1
 
 ##  Check, then clean up env
 stopifnot(nrow(ngp.PS) + nrow(ngp.NS) == nrow(ngp.dtm))
-rm(ngp.data, ngp.dtm, ngp.dtm.index)
+rm(ngp.data, ngp.dtm, ngp.dtm.index, parallel.cluster)
 
 
 beepr::beep(1)
-stopCluster(parallel.cluster)
 cat("Read data completed, starting loop")
 
 
 
+
+
 ##############################################
-####    Begin loops
+####    Code for 1 iteration (Does not run here)
+##############################################
+ngp.sampling <- function
+    (ngp.PS, ngp.NS, ngp.class, ngp.output, trnLabeled, var.i) {
+      
+  cat("TrnPct", trnLabeled[var.i], " |  Sample", var.j, "of 10\n")
+  ## Split for training/testing sets, 60% of data to be set as training
+  temp <- sample(1:nrow(ngp.PS), 0.6 * nrow(ngp.PS), replace = FALSE)
+  ngp.trn.PS <- ngp.PS[temp, ]
+  ngp.tst <- ngp.PS[-temp, ]
+  
+  temp <- sample(1:nrow(ngp.NS), 0.6 * nrow(ngp.NS), replace = FALSE)
+  ngp.trn.NS <- ngp.NS[temp, ]
+  ngp.tst <- c(ngp.tst, ngp.NS[-temp, ])
+  
+  ## Check for train/test split
+  stopifnot(nrow(ngp.trn.PS) + nrow(ngp.trn.NS) + nrow(ngp.tst) 
+            == nrow(ngp.PS) + nrow(ngp.NS))
+  
+  
+  
+  ## Split for labeled data and unlabeled data
+  temp <- sample(
+  		  1:nrow(ngp.trn.PS),
+  		  ceiling(trnLabeled[var.i] * nrow(ngp.trn.PS)),
+  		  replace = FALSE)
+  ngp.trn.US <- c(ngp.trn.PS[-temp, ], ngp.trn.NS)  # Move unlabeled PS into US
+  ngp.trn.PS <- ngp.trn.PS[temp, ]                  # Remove unlabeled PS from the set
+  rm(ngp.trn.NS)
+  
+  ## Check for labeled/unlabeled split
+  stopifnot(nrow(ngp.trn.PS) + nrow(ngp.trn.US) + nrow(ngp.tst) 
+            == nrow(ngp.PS) + nrow(ngp.NS))
+  
+  
+  
+  ## Mark labeled training data in data frame
+  ngp.trn.class <- ngp.class[c(rownames(ngp.trn.PS), rownames(ngp.trn.US)), ]
+  ngp.trn.class["isLabeled"] <- FALSE
+  ngp.trn.class["label"] <- -1
+  ngp.trn.class[rownames(ngp.trn.PS), ]$isLabeled <- TRUE
+  ngp.trn.class[rownames(ngp.trn.PS), ]$label <- 1
+  ngp.trn.class$label <- as.factor(ngp.trn.class$label)
+  
+  ## Convert to matrix
+  ngp.trn <- c(ngp.trn.PS, ngp.trn.US)
+  ngp.trnM <- as.matrix(ngp.trn)
+  
+  ## Arrange by document ID, check IDs are correct
+  ngp.trnM <- ngp.trnM[order(rownames(ngp.trnM)), ]
+  ngp.trn.class <- ngp.trn.class[order(rownames(ngp.trn.class)), ]
+  stopifnot(rownames(ngp.trnM) == rownames(ngp.trn.class))
+  
+  
+  ## Repeat matrix + class for testing data
+  ngp.tstM <- as.matrix(ngp.tst)
+  ngp.tstM <- ngp.tstM[order(rownames(ngp.tstM)), ]
+  ngp.tst.class <- ngp.class[rownames(ngp.tst), ]
+  ngp.tst.class <- ngp.tst.class[order(rownames(ngp.tst.class)), ]
+  
+  ## Creating folds for 10-fold cross validation used later
+  ngp.tst.class$fold <- createFolds(rownames(ngp.tst.class), k = 10, list = FALSE, returnTrain = FALSE)
+  
+  
+  
+  ##############################################
+  ####    Build Classifiers
+  cat("    Building Classifiers: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
+  classifer.nb <- naiveBayes(ngp.trnM, ngp.trn.class$label, laplace = 0.15)
+  
+  
+  ################################################
+  ## Run the classifers on test data
+  cat("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
+  results.nb <- predict(classifer.nb, ngp.tstM)
+  
+  
+  ################################################
+  ## Calculating performance
+  cat("    Calculating Performance: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
+  
+  ## Calculate performance for each fold
+  for (i in 1:10) {
+    ## Naive-Bayes
+    ngp.tst.class$predict <- utils.convertFactorToNumeric(results.nb)
+    ngp.output["fmeasure", "nBayes"] <- ngp.output["fmeasure", "nBayes"] 
+        + utils.calculateFMeasure(ngp.tst.class[ngp.tst.class$fold == i, ])
+    ngp.output["accuracy", "nBayes"] <- ngp.output["accuracy", "nBayes"] 
+        + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
+    
+    ## Spy-EM
+    # ngp.tst.class$predict <- utils.convertFactorToNumeric(results.sem)
+    ngp.output["fmeasure", "Spy-EM"] <- ngp.output["fmeasure", "Spy-EM"] 
+        + (var.j + var.i) / 10
+    ngp.output["accuracy", "Spy-EM"] <- ngp.output["accuracy", "Spy-EM"] 
+        + (var.j + var.i) / 10
+  }
+  
+  ## Average results over 10 folds
+  ngp.output <- ngp.output / 10
+  
+  return(ngp.output)
+}
+
+  
+  
+
+  
+##############################################
+####    Begin loops to sample data
 ##############################################
 ## Percentage of training data to be set as labeled
 # TODO: Set correct values after code is stable
-# trnLabeled <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.45, 0.55, 0.65)
-# trnLabeled <- c(0.10, 0.30, 0.65)
-# repSamples <- 4
-trnLabeled <- c(0.30, 0.65)
-repSamples <- 3
+# trnLabeled <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.65)
+trnLabeled <- c(0.10, 0.20, 0.40, 0.65)
+# trnLabeled <- c(0.30, 0.65)
+
+# TODO: Set to 10 for actual run
+repSamples <- 4
 
 namesOfClassifiers <- c("nBayes", "Spy-EM")
 numberOfClassifiers <- length(namesOfClassifiers)
-# var.i <- 1
-# var.j <- 1
 
 
 ## Set up cluster for parallel
@@ -148,117 +235,42 @@ registerDoParallel(parallel.cluster)
 
 
 ## Build matrix to store overall results
-ngp.fmeasure.results <- matrix(rep(-1, numberOfClassifiers * length(trnLabeled)), length(trnLabeled))
-  rownames(ngp.fmeasure.results) <- trnLabeled
-  colnames(ngp.fmeasure.results) <- namesOfClassifiers
+ngp.fmeasure.results <- matrix(rep(-1, numberOfClassifiers * length(trnLabeled)), 
+                               length(trnLabeled))
+rownames(ngp.fmeasure.results) <- trnLabeled
+colnames(ngp.fmeasure.results) <- namesOfClassifiers
 ngp.accuracy.results <- ngp.fmeasure.results
 
 ## Vary % of data that is labeled data
 for (var.i in 1:length(trnLabeled)) {
 
-  ## Build matrix to store results from samples
-  ngp.fmeasure.samples <- matrix(rep(-1, numberOfClassifiers * repSamples), repSamples)
-  colnames(ngp.fmeasure.samples) <- namesOfClassifiers
-  ngp.accuracy.samples <- ngp.fmeasure.samples
+  ## Build a row of of the results, for ngp.sampling to return
+  ngp.sampling.output.row <- matrix(rep(-1, numberOfClassifiers*2), nrow=2)
+	colnames(ngp.sampling.output.row) <- namesOfClassifiers
+	rownames(ngp.sampling.output.row) <- c("fmeasure", "accuracy")
 
-
-  ## Repeat 10 times to avoid sampling bias
-  # for (var.j in 1:repSamples) {
-  foreach(var.j = 1:repSamples,
-          .packages = c("tm", "e1071", "SnowballC", "beepr")) %dopar% {
-
-    cat("TrnPct", trnLabeled[var.i], " |  Sample", var.j, "of 10\n")
-    ## Split for training/testing sets, 60% of data to be set as training
-    temp <- sample(1:nrow(ngp.PS), 0.6 * nrow(ngp.PS), replace = FALSE)
-    ngp.trn.PS <- ngp.PS[temp, ]
-    ngp.tst <- ngp.PS[-temp, ]
-
-    temp <- sample(1:nrow(ngp.NS), 0.6 * nrow(ngp.NS), replace = FALSE)
-    ngp.trn.NS <- ngp.NS[temp, ]
-    ngp.tst <- c(ngp.tst, ngp.NS[-temp, ])
-
-    ## Check for train/test split
-    stopifnot(nrow(ngp.trn.PS) + nrow(ngp.trn.NS) + nrow(ngp.tst) == nrow(ngp.PS) + nrow(ngp.NS))
-
-
-
-    ## Split for labeled data and unlabeled data
-    temp <- sample(
-              1:nrow(ngp.trn.PS),
-              ceiling(trnLabeled[var.i] * nrow(ngp.trn.PS)),
-              replace = FALSE)
-    ngp.trn.US <- c(ngp.trn.PS[-temp, ], ngp.trn.NS)  # Move unlabeled PS into US
-    ngp.trn.PS <- ngp.trn.PS[temp, ]                  # Remove unlabeled PS from the set
-    rm(ngp.trn.NS)
-
-    ## Check for labeled/unlabeled split
-    stopifnot(nrow(ngp.trn.PS) + nrow(ngp.trn.US) + nrow(ngp.tst) == nrow(ngp.PS) + nrow(ngp.NS))
-
-
-
-    ## Mark labeled training data in data frame
-    ngp.trn.class <- ngp.class[c(rownames(ngp.trn.PS), rownames(ngp.trn.US)), ]
-    ngp.trn.class["isLabeled"] <- FALSE
-    ngp.trn.class["label"] <- -1
-    ngp.trn.class[rownames(ngp.trn.PS), ]$isLabeled <- TRUE
-    ngp.trn.class[rownames(ngp.trn.PS), ]$label <- 1
-    ngp.trn.class$label <- as.factor(ngp.trn.class$label)
-
-    ## Convert to matrix
-    ngp.trn <- c(ngp.trn.PS, ngp.trn.US)
-    ngp.trnM <- as.matrix(ngp.trn)
-
-    ## Arrange by document ID, check IDs are correct
-    ngp.trnM <- ngp.trnM[order(rownames(ngp.trnM)), ]
-    ngp.trn.class <- ngp.trn.class[order(rownames(ngp.trn.class)), ]
-    stopifnot(rownames(ngp.trnM) == rownames(ngp.trn.class))
-
-
-    ## Repeat matrix + class for testing data
-    ngp.tstM <- as.matrix(ngp.tst)
-    ngp.tstM <- ngp.tstM[order(rownames(ngp.tstM)), ]
-    ngp.tst.class <- ngp.class[rownames(ngp.tst), ]
-    ngp.tst.class <- ngp.tst.class[order(rownames(ngp.tst.class)), ]
-
-
-
-    ##############################################
-    ####    Build Classifiers
-    cat("    Building Classifiers: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
-    classifer.nb <- naiveBayes(ngp.trnM, ngp.trn.class$label, laplace = 0.15)
-
-
-
-
-    ################################################
-    ## Run the classifers on test data
-    cat("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
-    # results.nb <- predict(classifer.nb, ngp.tstM)
-
-
-    ################################################
-    ## Calculating performance
-    cat("    Calculating Performance: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
-
-    ## Naive-Bayes
-    # ngp.tst.class$predict <- utils.convertFactorToNumeric(results.nb)
-    ngp.fmeasure.samples[var.j, 1] <- utils.calculateFMeasure(ngp.tst.class)
-    ngp.accuracy.samples[var.j, 1] <- utils.calculateAccuracy(ngp.tst.class)
-
-    ## Spy-EM
-    ngp.fmeasure.samples[var.j, 2] <- (var.j + var.i) / 10
-    ngp.accuracy.samples[var.j, 2] <- (var.j + var.i) / 10
-
-
-    ## Remove biggest data variables from memory
-    rm(ngp.trnM, ngp.tstM)
+	
+	##############################################
+  #### Repeat sampling 10 times to avoid sampling bias
+  ngp.sampling.results <- foreach(var.j = 1:repSamples,
+          .packages = c("tm", "e1071", "SnowballC")) %dopar% ngp.sampling(
+            ngp.PS, ngp.NS, ngp.class, ngp.sampling.output.row, trnLabeled, var.i) 
+  ##############################################
+  
+  
+  ## Pull results from repeated sampling
+  ngp.sampling.fmeasure <- matrix(rep(0, numberOfClassifiers), nrow=1)
+  colnames(ngp.sampling.fmeasure) <- namesOfClassifiers
+  ngp.sampling.accuracy <- ngp.sampling.fmeasure
+  for (sample in ngp.sampling.results) {
+    stopifnot(!(-1 %in% sample | NaN %in% sample)) 
+    ngp.sampling.fmeasure <- ngp.sampling.fmeasure + sample["fmeasure", ]
+    ngp.sampling.accuracy <- ngp.sampling.accuracy + sample["accuracy", ]
   }
-
-  ## Mean results from 10 random samples, and store in main matrix
-  for (i in 1:numberOfClassifiers) {
-    ngp.fmeasure.results[var.i, i] <- mean(ngp.fmeasure.samples[, i])
-    ngp.accuracy.results[var.i, i] <- mean(ngp.accuracy.samples[, i])
-  }
+  
+  ## Calculate mean
+  ngp.fmeasure.results[var.i, ] <- ngp.sampling.fmeasure / repSamples
+  ngp.accuracy.results[var.i, ] <- ngp.sampling.fmeasure / repSamples
 
   beepr::beep(1)
 }
@@ -267,8 +279,8 @@ stopCluster(parallel.cluster)
 beepr::beep(2)
 
 
-
-
+## Save workspace, just in case
+save.image("newsgroup-results.RData")
 
 
 ## PLOT FOR F-MEASURE

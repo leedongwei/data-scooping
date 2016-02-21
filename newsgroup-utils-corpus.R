@@ -1,10 +1,10 @@
-# utils.prepCorpora <- function(dirVector) {
-#   corpora <- lapply(dirVector, function(dirName) {
-#     return(utils.prepCorpus(dirName))
-#   })
-#   names(corpora) = dirVector
-#   return(corpora)
-# }
+utils.prepCorpora <- function(dirVector) {
+  corpora <- lapply(dirVector, function(dirName) {
+    return(utils.prepCorpus(dirName))
+  })
+  names(corpora) = dirVector
+  return(corpora)
+}
 
 utils.prepCorpora.parallel <- function(cluster, dirVector) {
   ## Set up for parLapply

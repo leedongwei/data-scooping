@@ -5,6 +5,8 @@
 
 <br>
 
+# Semi-supervised Learning 
+
 ## Algorithms
 * Naive-Bayes
 * Rocchio
@@ -20,6 +22,7 @@
 
 
 ## Data Sets
-* Semi-supervised learning using [
-Breast Cancer Wisconsin](https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+(Diagnostic))
+* [Breast Cancer Wisconsin](https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+(Diagnostic))
   * Files tagged as: bcw-xxx
+* [20 Newsgroup](http://qwone.com/~jason/20Newsgroups/)
+  * Files tagged as: newsgroup-xxx
