@@ -190,19 +190,18 @@ ngp.sampling <- function
   
   ## Calculate performance for each fold
   for (i in 1:10) {
+    if (i == 1) {
+      ngp.output[which(ngp.output == -1)] <- 0
+    }
     ## Naive-Bayes
     ngp.tst.class$predict <- utils.convertFactorToNumeric(results.nb)
-    ngp.output["fmeasure", "nBayes"] <- ngp.output["fmeasure", "nBayes"] 
-        + utils.calculateFMeasure(ngp.tst.class[ngp.tst.class$fold == i, ])
-    ngp.output["accuracy", "nBayes"] <- ngp.output["accuracy", "nBayes"] 
-        + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
+    ngp.output["fmeasure", "nBayes"] <- ngp.output["fmeasure", "nBayes"] + utils.calculateFMeasure(ngp.tst.class[ngp.tst.class$fold == i, ])
+    ngp.output["accuracy", "nBayes"] <- ngp.output["accuracy", "nBayes"] + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
     
     ## Spy-EM
     # ngp.tst.class$predict <- utils.convertFactorToNumeric(results.sem)
-    ngp.output["fmeasure", "Spy-EM"] <- ngp.output["fmeasure", "Spy-EM"] 
-        + 0.1
-    ngp.output["accuracy", "Spy-EM"] <- ngp.output["accuracy", "Spy-EM"] 
-        + 0.1
+    ngp.output["fmeasure", "Spy-EM"] <- ngp.output["fmeasure", "Spy-EM"] + 0.1
+    ngp.output["accuracy", "Spy-EM"] <- ngp.output["accuracy", "Spy-EM"] + 0.1
   }
   
   ## Average results over 10 folds
