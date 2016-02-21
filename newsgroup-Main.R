@@ -198,9 +198,9 @@ ngp.sampling <- function
     ## Spy-EM
     # ngp.tst.class$predict <- utils.convertFactorToNumeric(results.sem)
     ngp.output["fmeasure", "Spy-EM"] <- ngp.output["fmeasure", "Spy-EM"] 
-        + (var.j + var.i) / 10
+        + 0.1
     ngp.output["accuracy", "Spy-EM"] <- ngp.output["accuracy", "Spy-EM"] 
-        + (var.j + var.i) / 10
+        + 0.1
   }
   
   ## Average results over 10 folds

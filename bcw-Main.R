@@ -36,7 +36,7 @@ source("bcw-RocchioClusteringSVM.R")
 source("bcw-LELC.R")
 
 ##    Utilities
-source("bcw-utils-CalculateF.R")
+source("bcw-utils-perf.R")
 source("bcw-utils-CalculateAccuracy.R")
 
 
