@@ -48,6 +48,7 @@ source("newsgroup-utils-functions.R")
 ####    Start of code
 ##############################################
 # file.remove("newsgroup-output.txt")
+timer.start <- proc.time()
 parallel.cluster <- utils.createParallelCluster()
 
 dir.all <- c("alt.atheism",              "comp.graphics",
@@ -97,6 +98,7 @@ stopifnot(nrow(ngp.PS) + nrow(ngp.NS) == nrow(ngp.dtm))
 rm(ngp.data, ngp.dtm, ngp.dtm.index, parallel.cluster)
 
 
+timer.readNewsgroup <- proc.time() - timer.start
 beepr::beep(1)
 cat("Read data completed, starting loop")
 
@@ -253,7 +255,7 @@ for (var.i in 1:length(trnLabeled)) {
 	##############################################
   #### Repeat sampling 10 times to avoid sampling bias
   ngp.sampling.results <- foreach(var.j = 1:repSamples,
-          .packages = c("tm", "e1071", "SnowballC")) %dopar% ngp.sampling(
+          .packages = c("tm", "e1071", "SnowballC", "caret")) %dopar% ngp.sampling(
             ngp.PS, ngp.NS, ngp.class, ngp.sampling.output.row, trnLabeled, var.i) 
   ##############################################
   
@@ -276,6 +278,7 @@ for (var.i in 1:length(trnLabeled)) {
 }
 
 stopCluster(parallel.cluster)
+timer.loop <- proc.time() - timer.readNewsgroup
 beepr::beep(2)
 
 
@@ -286,3 +289,4 @@ save.image("newsgroup-results.RData")
 ## PLOT FOR F-MEASURE
 utils.plotGraph(ngp.fmeasure.results, "F-Measure")
 utils.plotGraph(ngp.accuracy.results, "Accuracy")
+timer.total <- proc.time() - timer.start
