@@ -30,3 +30,7 @@ utils.plotGraph <- function(ngp.results, nameOfGraph) {
   legend("bottomright", colnames(ngp.results), cex=0.8, col=colors,
          pch=plotchar, lty=linetype, title=paste(nameOfGraph, "Graph"))
 }
+
+utils.cat <- function(message) {
+  cat(message, file="newsgroup-output.txt", append=TRUE)
+}

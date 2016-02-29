@@ -113,7 +113,7 @@ cat("Read data completed, starting loop")
 ngp.sampling <- function
     (ngp.PS, ngp.NS, ngp.class, ngp.output, trnLabeled, var.i) {
 
-  cat("TrnPct", trnLabeled[var.i], " |  Sample", var.j, "of 10\n")
+  utils.cat(paste("TrnPct", trnLabeled[var.i], " |  Sample", var.j, "of 10\n"))
   ## Split for training/testing sets, 60% of data to be set as training
   temp <- sample(1:nrow(ngp.PS), 0.6 * nrow(ngp.PS), replace = FALSE)
   ngp.trn.PS <- ngp.PS[temp, ]
@@ -175,27 +175,26 @@ ngp.sampling <- function
 
   ##############################################
   ####    Build Models
-  cat("    Building Models: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
-  sink("newsgroup-output.txt", append=TRUE) 
-  # models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
-  models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
+  utils.cat(paste("    Building Models: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
 
-  
+  # models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
+  # models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
+
+
   ################################################
   ## Run the models on test data
-  cat("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
-  sink("newsgroup-output.txt", append=TRUE) 
+  utils.cat(paste("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   # results.nBayes <- predict(models.nBayes, ngp.tstMatrix)
-  results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
+  # results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
 
   # TODO: Remove fake stand-in for actual
   results.nBayes <- as.factor(rep(-1, nrow(ngp.tstMatrix)))
+  results.Spy_EM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
 
 
   ################################################
   ## Calculating performance
-  cat("    Calculating Performance: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
-  sink("newsgroup-output.txt", append=TRUE) 
+  utils.cat(paste("    Calculating Performance: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
 
   ## Calculate performance for each fold
   for (i in 1:10) {
