@@ -34,7 +34,7 @@ source("newsgroup-utils-dtm.R")
 source("newsgroup-utils-perf.R")
 source("newsgroup-utils-functions.R")
 
-# source("Spy_EM.R")
+source("newsgroup-SpyEM.R")
 
 
 
@@ -176,13 +176,15 @@ ngp.sampling <- function
   ##############################################
   ####    Build Models
   cat("    Building Models: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
+  sink("newsgroup-output.txt", append=TRUE) 
   # models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
   models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
 
-
+  
   ################################################
   ## Run the models on test data
   cat("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
+  sink("newsgroup-output.txt", append=TRUE) 
   # results.nBayes <- predict(models.nBayes, ngp.tstMatrix)
   results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
 
@@ -193,6 +195,7 @@ ngp.sampling <- function
   ################################################
   ## Calculating performance
   cat("    Calculating Performance: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep="")
+  sink("newsgroup-output.txt", append=TRUE) 
 
   ## Calculate performance for each fold
   for (i in 1:10) {
@@ -206,9 +209,9 @@ ngp.sampling <- function
     ngp.output["accuracy", "nBayes"] <- ngp.output["accuracy", "nBayes"] + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
 
     ## Spy-EM
-    # ngp.tst.class$predict <- utils.convertFactorToNumeric(results.Spy_EM)
-    ngp.output["fmeasure", "Spy-EM"] <- ngp.output["fmeasure", "Spy-EM"] + 0.1
-    ngp.output["accuracy", "Spy-EM"] <- ngp.output["accuracy", "Spy-EM"] + 0.1
+    ngp.tst.class$predict <- utils.convertFactorToNumeric(results.Spy_EM)
+    ngp.output["fmeasure", "Spy-EM"] <- ngp.output["fmeasure", "Spy-EM"] + utils.calculateFMeasure(ngp.tst.class[ngp.tst.class$fold == i, ])
+    ngp.output["accuracy", "Spy-EM"] <- ngp.output["accuracy", "Spy-EM"] + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
   }
 
   ## Average results over 10 folds

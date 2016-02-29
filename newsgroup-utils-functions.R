@@ -2,7 +2,7 @@ utils.createParallelCluster <- function() {
   cat("Creating parallel cluster...\n")
   numberOfCores <- max(1, detectCores() - 1)
   cluster <- makeCluster(numberOfCores,
-                         outfile = "")
+                         outfile = "newsgroup-output.txt")
 
   cat("Created parallel cluster with ", numberOfCores, " cores", sep="")
   return(cluster)

@@ -1,110 +1,153 @@
+ngp.model.Spy_EM <- function (ngp.trnMatrix, ngp.class) {
 
-FindReliableNegativeSet <- function (P, U, Spy.rate) {
-  # Spy_EM step 1: find reliable negative set
-  # Args: P, postive label data;
-  #       U, unlabeled data
-  P.size <- nrow(P)
-  sample.index <- sample.int(P.size, round(P.size*Spy.rate))
-  Us <- rbind(P[sample.index, ], U)
-  Ps <- P[-sample.index, ]
-  originalNames <- names(Ps)
-  Ps$label <- 1
-  Us$label <- -1
-  Ps$label <- as.factor(Ps$label)
-  Us$label <- as.factor(Us$label)
-  data <- rbind(Ps, Us)
-  NB.model <- naiveBayes(label~., data = data[, !names(data) %in% c('id', 'class')])
-  Us.predict <- predict(NB.model, Us)
-  iter <- 1
-  while (iter < 25) {
-    Us$label <- Us.predict
-    data <- rbind(Ps, Us)
-    NB.model <- naiveBayes(label~., data = data[, !names(data) %in% c('id', 'class')])
-    Us.predict <- predict(NB.model, Us)
-    iter <- iter+1
-    if (identical(Us$label, Us.predict)) {
+  ## default % of spies document is 15% of PS
+  var.spy <- 0.15
+
+  RN <- ngp.model.Spy_EM.FindRN(ngp.trnMatrix, ngp.class, var.spy)
+  ngp.class$RN <- 0
+  ngp.class[RN, ]$RN <- -1
+
+  model.Spy_EM <- ngp.model.Spy_EM.BuildModel(ngp.trnMatrix, ngp.class)
+
+  return(model.Spy_EM)
+}
+
+ngp.model.Spy_EM.FindRN <- function (ngp.trnMatrix, ngp.class, var.spy) {
+
+  PS <- rownames(ngp.class[ngp.class$label == 1, ])
+  US <- rownames(ngp.class[ngp.class$label == -1, ])
+
+  ## Mark out spies
+  temp <- sample.int(length(PS), size=ceiling(length(PS) * var.spy), replace=FALSE)
+  US.spies <- PS[temp]
+  ngp.class$isSpy <- FALSE
+  ngp.class[US.spies, ]$isSpy <- TRUE
+
+  ## Set spies as negative with the rest of US
+  ngp.class[US.spies, ]$label <- -1
+  PS <- PS[-temp]
+  US <- c(US, US.spies)
+
+  ## Check that matrix and class are sorted
+  if (all(rownames(ngp.trnMatrix) != rownames(ngp.class))) {
+    ngp.trnMatrix <- ngp.trnMatrix[order(rownames(ngp.trnMatrix)), ]
+    ngp.class     <- ngp.class[order(rownames(ngp.class)), ]
+  }
+  PS <- PS[order(PS)]
+  US <- US[order(US)]
+
+  ## Set up for Naive-Bayes iterations
+  ngp.class$predict <- ngp.class$label
+  if (!is.factor(ngp.class$predict)) {
+    ngp.class$predict <- as.factor(ngp.class$predict)
+  }
+
+  ##############################################
+  ####    Naive-Bayes iterations
+  nBayes.model <- naiveBayes(ngp.trnMatrix, ngp.class$predict, laplace=0.15)
+  US.predict <- predict(nBayes.model, ngp.trnMatrix[US, ])
+  var.iter <- 1
+  var.iter.values <- c(0, 0, 0)
+
+  while (var.iter < 32) {
+    cat("        Spy_EM.FindRN, iteration ", var.iter, "\n", sep="")
+
+    ngp.class[US, ]$predict <- US.predict
+
+    nBayes.model <- naiveBayes(ngp.trnMatrix, ngp.class$predict, laplace=0.1)
+    US.predict <- predict(nBayes.model, ngp.trnMatrix[US, ])
+    var.iter <- var.iter + 1
+
+    ## Stopping condition
+    if (identical(ngp.class[US, ]$predict, US.predict)) {
       break
+    } else {
+      # print(which(ngp.class[US, ]$predict != US.predict))
+      var.iter.values[3] <- var.iter.values[2]
+      var.iter.values[2] <- var.iter.values[1]
+      var.iter.values[1] <- length(which(ngp.class[US, ]$predict != US.predict))
+
+      ## If the number of different predictions between last 3 iterations is less than 10%, we can assume that it has converged
+      # print(var.iter.values)
+      var.maxDiff <- ceiling(max(var.iter.values) / 10)
+      if (!(0 %in% var.iter.values)
+          & (var.iter.values[3] - var.iter.values[2] < var.maxDiff)
+          & (var.iter.values[2] - var.iter.values[1] < var.maxDiff)) {
+        break
+      }
     }
   }
-  index <- which(Us$class == 4)
-  thr <- min(predict(NB.model, Us[index, ], type='raw')[, 1])
-  Us.predict <- predict(NB.model, Us, type='raw')[, 1]
-  RN <- Us[which(Us.predict < thr), ]
-  Q <- setdiff(Us, RN)
-  RN <- RN[, originalNames]
-  Q <- Q[, originalNames]
-  return(list(RN=RN, Q=Q))
+
+  ## Run final mode on PS and US to get Probability
+  spies.predict <- predict(nBayes.model, ngp.trnMatrix[US.spies, ], type='raw')
+  US.predict <- predict(nBayes.model, ngp.trnMatrix[US, ], type='raw')
+
+  ## Extract RN and mark it in ngp.class
+  ## TODO: Find out why threshold is zero
+  # threshold <- min(spies.predict[which(spies.predict[, "1"] != 0), "1"])
+  threshold <- min(spies.predict[, "1"])
+
+  temp <- which(US.predict[, "1"] < threshold | US.predict[, "1"] == 0)
+  RN <- rownames(ngp.class[US, ][temp, ])
+
+  return(RN)
 }
 
-SeparateQSet <- function (P, RN, Q) {
-  # Spy_EM step 2: further separte the Q set with Q=U-RN
-  P$label <- 1
-  RN$label <- -1
-  P$label <- as.factor(P$label)
-  RN$label <- as.factor(RN$label)
-  data <- rbind(P, RN)
-  NB.model <- naiveBayes(label~., data = data[, !names(data) %in% c('id', 'class')])
-  Q.predict <- predict(NB.model, Q)
-  Q$label <- 1 # initialize
-  Q$label <- as.factor(Q$label)
-  iter <- 1
-  while (iter < 25) {
-    Q$label <- Q.predict
-    data <- rbind(rbind(P, RN), Q)
-    NB.model <- naiveBayes(label~., data = data[, !names(data) %in% c('id', 'class')])
-    Q.predict <- predict(NB.model, Q)
-    iter <- iter+1
-    if (identical(Q$label, Q.predict)) {
+
+ngp.model.Spy_EM.BuildModel <- function(ngp.trnMatrix, ngp.class) {
+
+  ## Move spies back into PS
+  US.spies <- rownames(ngp.class[ngp.class$isSpy == TRUE, ])
+  ngp.class[US.spies, ]$label <- 1
+  PS <- rownames(ngp.class[ngp.class$label == 1, ])
+  US <- rownames(ngp.class[ngp.class$label == -1, ])
+  RN <- rownames(ngp.class[ngp.class$label == -1 & ngp.class$RN == -1, ])
+
+  ## QS = US = RN
+  QS <- US [! US %in% RN]
+
+  ## Set for iterations
+  ngp.class$predict <- 0
+  ngp.class[PS, ]$predict <- 1
+  ngp.class[RN, ]$predict <- -1
+  ngp.class$predict <- as.factor(ngp.class$predict)
+
+  ## First run of Naive Bayes
+  nBayes.model <- naiveBayes(
+    ngp.trnMatrix[c(PS, RN), ],
+    ngp.class[c(PS, RN), ]$predict,
+    laplace=0.1)
+  QS.predict <- predict(nBayes.model, ngp.trnMatrix[QS, ])
+  var.iter <- 1
+  var.iter.values <- c(0, 0, 0)
+
+  while(var.iter < 128) {
+    cat("        Spy_EM.BuildModel, iteration ", var.iter, "n", sep="")
+
+    ngp.class[QS, ]$predict <- QS.predict
+
+    nBayes.model <- naiveBayes(ngp.trnMatrix, ngp.class$predict, laplace=0.1)
+    QS.predict <- predict(nBayes.model, ngp.trnMatrix[QS, ])
+
+    ## Stopping condition
+    if (identical(ngp.class[US, ]$predict, US.predict)) {
       break
+    } else {
+      # print(which(ngp.class[US, ]$predict != US.predict))
+      var.iter.values[3] <- var.iter.values[2]
+      var.iter.values[2] <- var.iter.values[1]
+      var.iter.values[1] <- length(which(ngp.class[US, ]$predict != US.predict))
+
+      ## If the number of different predictions between last 3 iterations is less than 10%, we can assume that it has converged
+      # print(var.iter.values)
+      var.maxDiff <- ceiling(max(var.iter.values) / 10)
+      if (!(0 %in% var.iter.values)
+          & (var.iter.values[3] - var.iter.values[2] < var.maxDiff)
+          & (var.iter.values[2] - var.iter.values[1] < var.maxDiff)) {
+        break
+      }
     }
   }
-  return(NB.model)
-}
 
-Spy_EM <- function (data, Spy.rate) {
-  # Spy_EM algorithm
-  # data <- trainData
-  P <- data[data$class==4, ]
-  U <- data[data$class==2, ]
-  RNlist <- FindReliableNegativeSet(P, U, Spy.rate)
-  S_EM.model <- SeparateQSet(P, RNlist$RN, RNlist$Q)
-}
-
-perfSpy_EM <- function (trnPercent, data, Spy.rate) {
-  # run Spy_EM and get F score
-#   trnPercent <- 0.3
-#   data <- bcw
-#   Spy.rate <- 0.15
-  data.size <- nrow(data)
-  train.index <- createDataPartition(data$class, times=1, p=trnPercent, list=FALSE)
-  trainData <- data[as.vector(train.index), ]
-  testData <- data[-as.vector(train.index), ]
-  S_EM.model <- Spy_EM(data=trainData, Spy.rate = Spy.rate)
-  predict.trn <- predict(S_EM.model, trainData, type='raw')
-  trainData$label <- 1
-  trainData$label[trainData$class==2] <- -1
-  trainData$label <- as.factor(trainData$label)
-  pred.obj.trn <- prediction(predict.trn[, 1], trainData$label)
-  perf.pr.trn <- performance(pred.obj.trn, 'prec', 'rec')
-  perf.acc.trn <- performance(pred.obj.trn, 'acc')
-  rec <- perf.pr.trn@x.values[[1]]
-  prec <- perf.pr.trn@y.values[[1]]
-  fscore <- 2*prec*rec/(prec+rec)
-  idx.1 <- which.max(fscore)
-  cutoff <- perf.pr.trn@alpha.values[[1]][idx.1] # cut-off point
-  predict.m <- predict(S_EM.model, testData, type='raw')
-  testData$label <- 1
-  testData$label[testData$class==2] <- -1
-  testData$label <- as.factor(testData$label)
-  pred.obj <- prediction(predict.m[, 1], testData$label)
-  perf.pr <- performance(pred.obj, 'prec', 'rec')
-  perf.acc <- performance(pred.obj, 'acc')
-  idx <- which(abs(perf.pr@alpha.values[[1]]-cutoff) < 0.001)[1]
-  rec <- perf.pr@x.values[[1]]
-  prec <- perf.pr@y.values[[1]]
-  fscore <- 2*prec*rec/(prec+rec)
-  F <- fscore[idx] # maximum f score
-  idx <- which(abs(perf.acc@x.values[[1]]-cutoff) < 0.001)[1]
-  acc <- perf.acc@y.values[[1]][idx]
-  return(data.frame(F, acc))
+  return(nBayes.model)
 }
