@@ -1,6 +1,8 @@
-ngp.model.Spy_EM <- function (ngp.trnMatrix, ngp.class) {
+source("newsgroup-utils-functions.R")
 
-  ## default % of spies document is 15f% of PS
+
+ngp.model.Spy_EM <- function (ngp.trnMatrix, ngp.class) {
+  ## default % of spies document is 15% of PS
   var.spy <- 0.15
 
   RN <- ngp.model.Spy_EM.FindRN(ngp.trnMatrix, ngp.class, var.spy)
@@ -94,7 +96,7 @@ ngp.model.Spy_EM.FindRN <- function (ngp.trnMatrix, ngp.class, var.spy) {
 }
 
 
-ngp.model.Spy_EM.BuildModel <- function(ngp.trnMatrix, ngp.class) {
+ngp.model.Spy_EM.BuildModel <- function (ngp.trnMatrix, ngp.class) {
 
   ## Move spies back into PS
   US.spies <- rownames(ngp.class[ngp.class$isSpy == TRUE, ])
@@ -121,7 +123,7 @@ ngp.model.Spy_EM.BuildModel <- function(ngp.trnMatrix, ngp.class) {
   var.iter <- 1
   var.iter.values <- c(0, 0, 0)
 
-  while(var.iter < 128) {
+  while(var.iter < 32) {
     utils.cat(paste("        Spy_EM.BuildModel, iteration ", var.iter, "n", sep=""))
 
     ngp.class[QS, ]$predict <- QS.predict

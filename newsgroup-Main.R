@@ -1,6 +1,6 @@
 # install.packages(
 #   c("tm", "tm.plugin.mail",
-#     "e1071", "SnowballC", "caret"
+#     "e1071", "SnowballC", "caret",
 #     "parallel", "doParallel", "foreach","snow",
 #     "beepr"))
 
@@ -35,6 +35,7 @@ source("newsgroup-utils-perf.R")
 source("newsgroup-utils-functions.R")
 
 source("newsgroup-SpyEM.R")
+source("newsgroup-RocchioSVM.R")
 
 
 
@@ -173,23 +174,33 @@ ngp.sampling <- function
 
 
 
+
+
   ##############################################
   ####    Build Models
   utils.cat(paste("    Building Models: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
 
+
+  ## utils.cat(paste("        Start naiveBayes; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   # models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
-  # models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
+
+  utils.cat(paste("        Start SpyEM; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
+
 
 
   ################################################
   ## Run the models on test data
   utils.cat(paste("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   # results.nBayes <- predict(models.nBayes, ngp.tstMatrix)
-  # results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
+  results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
 
   # TODO: Remove fake stand-in for actual
   results.nBayes <- as.factor(rep(-1, nrow(ngp.tstMatrix)))
-  results.Spy_EM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
+  # results.Spy_EM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
+
+
+
 
 
   ################################################
