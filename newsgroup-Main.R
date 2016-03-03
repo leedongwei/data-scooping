@@ -111,6 +111,10 @@ cat("Read data completed, starting loop")
 ####    Function for 1 sampling iteration
 ####    This will run on the parallel loop below
 ##############################################
+trnLabeled <- c(0.10, 0.20, 0.40, 0.65)
+var.i <- 4
+var.j <- 1
+
 ngp.sampling <- function
     (ngp.PS, ngp.NS, ngp.class, ngp.output, trnLabeled, var.i) {
 
@@ -181,11 +185,14 @@ ngp.sampling <- function
   utils.cat(paste("    Building Models: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
 
 
-  ## utils.cat(paste("        Start naiveBayes; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  # utils.cat(paste("        Start naiveBayes; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   # models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
 
-  utils.cat(paste("        Start SpyEM; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-  models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
+  # utils.cat(paste("        Start SpyEM; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  # models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
+
+  utils.cat(paste("        Start RocSVM; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  models.RocSVM <- ngp.model.RocchioSVM(ngp.trnMatrix, ngp.trn.class)
 
 
 
@@ -193,12 +200,13 @@ ngp.sampling <- function
   ## Run the models on test data
   utils.cat(paste("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   # results.nBayes <- predict(models.nBayes, ngp.tstMatrix)
-  results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
+  # results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
+  results.RocSVM <- predict(models.RocSVM, ngp.tstMatrix)
 
   # TODO: Remove fake stand-in for actual
-  results.nBayes <- as.factor(rep(-1, nrow(ngp.tstMatrix)))
-  # results.Spy_EM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
-
+  results.nBayes <- as.factor(rep(1, nrow(ngp.tstMatrix)))
+  results.Spy_EM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
+  # results.RocSVM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
 
 
 
@@ -246,7 +254,7 @@ trnLabeled <- c(0.10, 0.20, 0.40, 0.65)
 # TODO: Set to 10 for actual run
 repSamples <- 4
 
-namesOfClassifiers <- c("nBayes", "Spy-EM")
+namesOfClassifiers <- c("nBayes", "Spy-EM", "RocSVM")
 numberOfClassifiers <- length(namesOfClassifiers)
 
 
@@ -277,13 +285,14 @@ for (var.i in 1:length(trnLabeled)) {
           .packages = c("tm", "e1071", "SnowballC", "caret")) %dopar% ngp.sampling(
             ngp.PS, ngp.NS, ngp.class, ngp.sampling.output.row, trnLabeled, var.i)
   ##############################################
+  print(ngp.sampling.results)
 
 
   ## Pull results from repeated sampling
   ngp.sampling.fmeasure <- matrix(rep(0, numberOfClassifiers), nrow=1)
   colnames(ngp.sampling.fmeasure) <- namesOfClassifiers
   ngp.sampling.accuracy <- ngp.sampling.fmeasure
-  print(ngp.sampling.results)
+
   for (sample in ngp.sampling.results) {
     stopifnot(!(-1 %in% sample | NaN %in% sample))
     ngp.sampling.fmeasure <- ngp.sampling.fmeasure + sample["fmeasure", ]
