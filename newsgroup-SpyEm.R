@@ -2,22 +2,12 @@ source("newsgroup-utils-functions.R")
 
 
 ngp.model.Spy_EM <- function (ngp.trnMatrix, ngp.class) {
-  ## default % of spies document is 15% of PS
-  var.spy <- 0.15
-
-  RN <- ngp.model.Spy_EM.FindRN(ngp.trnMatrix, ngp.class, var.spy)
-  ngp.class$RN <- 0
-  ngp.class[RN, ]$RN <- -1
-
-  model.Spy_EM <- ngp.model.Spy_EM.BuildModel(ngp.trnMatrix, ngp.class)
-
-  return(model.Spy_EM)
-}
-
-ngp.model.Spy_EM.FindRN <- function (ngp.trnMatrix, ngp.class, var.spy) {
 
   PS <- rownames(ngp.class[ngp.class$label == 1, ])
   US <- rownames(ngp.class[ngp.class$label == -1, ])
+
+  ## default % of spies document is 15% of PS
+  var.spy <- 0.15
 
   ## Mark out spies
   temp <- sample.int(length(PS), size=ceiling(length(PS) * var.spy), replace=FALSE)
@@ -27,8 +17,23 @@ ngp.model.Spy_EM.FindRN <- function (ngp.trnMatrix, ngp.class, var.spy) {
 
   ## Set spies as negative with the rest of US
   ngp.class[US.spies, ]$label <- -1
-  PS <- PS[-temp]
-  US <- c(US, US.spies)
+
+
+
+  RN <- ngp.model.Spy_EM.FindRN(ngp.trnMatrix, ngp.class)
+  ngp.class$RN <- 0
+  ngp.class[RN, ]$RN <- -1
+
+  model.Spy_EM <- ngp.model.Spy_EM.BuildModel(ngp.trnMatrix, ngp.class)
+
+  return(model.Spy_EM)
+}
+
+ngp.model.Spy_EM.FindRN <- function (ngp.trnMatrix, ngp.class) {
+
+  PS <- rownames(ngp.class[ngp.class$label == 1, ])
+  US <- rownames(ngp.class[ngp.class$label == -1, ])
+  US.spies <- rownames(ngp.class[ngp.class$isSpy == TRUE, ])
 
   ## Check that matrix and class are sorted
   if (all(rownames(ngp.trnMatrix) != rownames(ngp.class))) {
@@ -51,7 +56,7 @@ ngp.model.Spy_EM.FindRN <- function (ngp.trnMatrix, ngp.class, var.spy) {
   var.iter <- 1
   var.iter.values <- c(0, 0, 0)
 
-  while (var.iter < 32) {
+  while (var.iter < 25) {
     utils.cat(paste("        Spy_EM.FindRN, iteration ", var.iter, "\n", sep=""))
 
     ngp.class[US, ]$predict <- US.predict
@@ -90,7 +95,7 @@ ngp.model.Spy_EM.FindRN <- function (ngp.trnMatrix, ngp.class, var.spy) {
   threshold <- min(spies.predict[, "1"])
 
   temp <- which(US.predict[, "1"] < threshold | US.predict[, "1"] == 0)
-  RN <- rownames(ngp.class[US, ][temp, ])
+  RN <- rownames((ngp.class[US, ])[temp, ])
 
   return(RN)
 }
@@ -123,7 +128,7 @@ ngp.model.Spy_EM.BuildModel <- function (ngp.trnMatrix, ngp.class) {
   var.iter <- 1
   var.iter.values <- c(0, 0, 0)
 
-  while(var.iter < 32) {
+  while(var.iter < 25) {
     utils.cat(paste("        Spy_EM.BuildModel, iteration ", var.iter, "n", sep=""))
 
     ngp.class[QS, ]$predict <- QS.predict
@@ -150,6 +155,5 @@ ngp.model.Spy_EM.BuildModel <- function (ngp.trnMatrix, ngp.class) {
       }
     }
   }
-
   return(nBayes.model)
 }

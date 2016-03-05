@@ -185,13 +185,13 @@ ngp.sampling <- function
   utils.cat(paste("    Building Models: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
 
 
-  # utils.cat(paste("        Start naiveBayes; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  # utils.cat(paste("        Start naiveBayes: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   # models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
 
-  # utils.cat(paste("        Start SpyEM; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  # utils.cat(paste("        Start SpyEM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   # models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
 
-  utils.cat(paste("        Start RocSVM; ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  utils.cat(paste("        Start RocSVM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   models.RocSVM <- ngp.model.RocchioSVM(ngp.trnMatrix, ngp.trn.class)
 
 
@@ -230,6 +230,11 @@ ngp.sampling <- function
     ngp.tst.class$predict <- utils.convertFactorToNumeric(results.Spy_EM)
     ngp.output["fmeasure", "Spy-EM"] <- ngp.output["fmeasure", "Spy-EM"] + utils.calculateFMeasure(ngp.tst.class[ngp.tst.class$fold == i, ])
     ngp.output["accuracy", "Spy-EM"] <- ngp.output["accuracy", "Spy-EM"] + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
+  
+    ## RocSVM
+    ngp.tst.class$predict <- utils.convertFactorToNumeric(results.RocSVM)
+    ngp.output["fmeasure", "RocSVM"] <- ngp.output["fmeasure", "RocSVM"] + utils.calculateFMeasure(ngp.tst.class[ngp.tst.class$fold == i, ])
+    ngp.output["accuracy", "RocSVM"] <- ngp.output["accuracy", "RocSVM"] + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
   }
 
   ## Average results over 10 folds
@@ -252,7 +257,7 @@ trnLabeled <- c(0.10, 0.20, 0.40, 0.65)
 # trnLabeled <- c(0.30, 0.65)
 
 # TODO: Set to 10 for actual run
-repSamples <- 4
+repSamples <- 3
 
 namesOfClassifiers <- c("nBayes", "Spy-EM", "RocSVM")
 numberOfClassifiers <- length(namesOfClassifiers)
