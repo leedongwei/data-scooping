@@ -64,12 +64,17 @@ dir.all <- c("alt.atheism",              "comp.graphics",
              "talk.politics.misc",       "talk.religion.misc")
 
 ## TODO: Select directories to use
-dir.selected <- dir.all
-
+# dir.selected <- dir.all
+dir.selected <- c( "comp.os.ms-windows.misc",  #"comp.windows.x",
+                   "alt.atheism",              #"sci.med",
+                   "sci.space",                #"soc.religion.christian",
+                   "talk.politics.guns")#,       "talk.politics.mideast")
+                   
 ## TODO: Set positive classes
-dir.positive <- c( "comp.graphics",
-                   "comp.os.ms-windows.misc",  "comp.sys.ibm.pc.hardware",
-                   "comp.sys.mac.hardware",    "comp.windows.x")
+# dir.positive <- c( "comp.graphics",
+#                    "comp.os.ms-windows.misc",  "comp.sys.ibm.pc.hardware",
+#                    "comp.sys.mac.hardware",    "comp.windows.x")
+dir.positive <- c( "comp.os.ms-windows.misc",  "comp.windows.x")
 
 
 ## Read to corpus, convert into DTM and clean it
@@ -188,11 +193,11 @@ ngp.sampling <- function
   # utils.cat(paste("        Start naiveBayes: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   # models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
 
-  # utils.cat(paste("        Start SpyEM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-  # models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
+  utils.cat(paste("        Start SpyEM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
 
-  utils.cat(paste("        Start RocSVM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-  models.RocSVM <- ngp.model.RocchioSVM(ngp.trnMatrix, ngp.trn.class)
+  # utils.cat(paste("        Start RocSVM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  # models.RocSVM <- ngp.model.RocchioSVM(ngp.trnMatrix, ngp.trn.class)
 
 
 
@@ -200,12 +205,12 @@ ngp.sampling <- function
   ## Run the models on test data
   utils.cat(paste("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   # results.nBayes <- predict(models.nBayes, ngp.tstMatrix)
-  # results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
-  results.RocSVM <- predict(models.RocSVM, ngp.tstMatrix)
+  results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
+  # results.RocSVM <- predict(models.RocSVM, ngp.tstMatrix)
 
   # TODO: Remove fake stand-in for actual
   results.nBayes <- as.factor(rep(1, nrow(ngp.tstMatrix)))
-  results.Spy_EM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
+  # results.Spy_EM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
   # results.RocSVM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
 
 
@@ -240,6 +245,7 @@ ngp.sampling <- function
   ## Average results over 10 folds
   ngp.output <- ngp.output / 10
 
+  utils.cat(paste("    Returning: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   return(ngp.output)
 }
 
@@ -263,10 +269,6 @@ namesOfClassifiers <- c("nBayes", "Spy-EM", "RocSVM")
 numberOfClassifiers <- length(namesOfClassifiers)
 
 
-## Set up cluster for parallel
-parallel.cluster <- utils.createParallelCluster()
-registerDoParallel(parallel.cluster)
-
 
 ## Build matrix to store overall results
 ngp.fmeasure.results <- matrix(rep(-1, numberOfClassifiers * length(trnLabeled)),
@@ -283,6 +285,10 @@ for (var.i in 1:length(trnLabeled)) {
 	colnames(ngp.sampling.output.row) <- namesOfClassifiers
 	rownames(ngp.sampling.output.row) <- c("fmeasure", "accuracy")
 
+	
+	## Set up cluster for parallel
+	parallel.cluster <- utils.createParallelCluster()
+	registerDoParallel(parallel.cluster)
 
 	##############################################
   #### Repeat sampling 10 times to avoid sampling bias
@@ -291,6 +297,10 @@ for (var.i in 1:length(trnLabeled)) {
             ngp.PS, ngp.NS, ngp.class, ngp.sampling.output.row, trnLabeled, var.i)
   ##############################################
   print(ngp.sampling.results)
+	
+	## Stop cluster after 1 for-each
+	## Prevents/reduces crashes
+	stopCluster(parallel.cluster)
 
 
   ## Pull results from repeated sampling
@@ -311,7 +321,6 @@ for (var.i in 1:length(trnLabeled)) {
   beepr::beep(1)
 }
 
-stopCluster(parallel.cluster)
 timer.loop <- proc.time() - timer.readNewsgroup
 beepr::beep(8)
 

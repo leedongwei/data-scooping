@@ -52,14 +52,14 @@ ngp.model.RocchioSVM.BuildModel <- function (ngp.trnMatrix, ngp.class) {
   model.svm.i <- model.svm.init
 
   var.iter <- 0
-  while(TRUE) {
+  while(length(QS) > 0) {
     var.iter <- var.iter + 1
-    utils.cat(paste("        RocSVM, iteration ", var.iter, "\n", sep=""))
+    utils.cat(paste("        RocSVM, iteration #", var.iter, "\n", sep=""))
 
     ngp.class[QS, ]$predict <- predict(model.svm.i, ngp.trnMatrix[QS, ])
     WS <- QS[QS %in% rownames(ngp.class[ngp.class$predict == -1, ])]
 
-    if (nrow(WS) == 0) {
+    if (length(WS) == 0) {
       break
     } else {
       QS <- QS[! QS %in% WS]
@@ -71,7 +71,7 @@ ngp.model.RocchioSVM.BuildModel <- function (ngp.trnMatrix, ngp.class) {
                          type = "C-classification")
     }
   }
-
+  utils.cat(paste("        RocSVM, end iterating at #", var.iter, "\n", sep=""))
 
 
 

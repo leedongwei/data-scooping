@@ -57,7 +57,7 @@ ngp.model.Spy_EM.FindRN <- function (ngp.trnMatrix, ngp.class) {
   var.iter.values <- c(0, 0, 0)
 
   while (var.iter < 25) {
-    utils.cat(paste("        Spy_EM.FindRN, iteration ", var.iter, "\n", sep=""))
+    utils.cat(paste("        Spy_EM.FindRN, iteration #", var.iter, "\n", sep=""))
 
     ngp.class[US, ]$predict <- US.predict
 
@@ -84,6 +84,7 @@ ngp.model.Spy_EM.FindRN <- function (ngp.trnMatrix, ngp.class) {
       }
     }
   }
+  utils.cat(paste("        Spy_EM.FindRN, break at #", var.iter, "\n", sep=""))
 
   ## Run final mode on PS and US to get Probability
   spies.predict <- predict(nBayes.model, ngp.trnMatrix[US.spies, ], type='raw')
@@ -129,7 +130,7 @@ ngp.model.Spy_EM.BuildModel <- function (ngp.trnMatrix, ngp.class) {
   var.iter.values <- c(0, 0, 0)
 
   while(var.iter < 25) {
-    utils.cat(paste("        Spy_EM.BuildModel, iteration ", var.iter, "n", sep=""))
+    utils.cat(paste("        Spy_EM.BuildModel, iteration #", var.iter, "n", sep=""))
 
     ngp.class[QS, ]$predict <- QS.predict
 
@@ -155,5 +156,6 @@ ngp.model.Spy_EM.BuildModel <- function (ngp.trnMatrix, ngp.class) {
       }
     }
   }
+  utils.cat(paste("        Spy_EM.BuildModel, break at #", var.iter, "n", sep=""))
   return(nBayes.model)
 }
