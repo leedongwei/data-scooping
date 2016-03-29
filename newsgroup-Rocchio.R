@@ -1,4 +1,34 @@
-ngp.model.rocchioVectorBuilder <- function(DF1, DF2) {
+ngp.model.Rocchio <- function (ngp.dtm, ngp.class) {
+
+  PS <- rownames(ngp.class[ngp.class$label == 1, ])
+  US <- rownames(ngp.class[ngp.class$label == -1, ])
+
+  ngp.positiveVector <- ngp.model.Rocchio.RocchioVectorBuilder(ngp.dtm[PS, ], ngp.dtm[US, ])
+  ngp.negativeVector <- ngp.model.Rocchio.RocchioVectorBuilder(ngp.dtm[US, ], ngp.dtm[PS, ])
+
+  model.Rocchio <- list(positive=ngp.positiveVector, negative=ngp.negativeVector)
+
+  return(model.Rocchio)
+}
+
+
+ngp.model.RocchioClassifer <- function(model.Rocchio, ngp.dtm) {
+
+  rocResults <- apply(ngp.dtm, 1, function(doc) {
+    r1 <- sum(model.Rocchio[["positive"]] * doc)
+    r2 <- sum(model.Rocchio[["negative"]] * doc)
+
+    if (r1 >= r2) {
+      rocLabel <- 1
+    } else {
+      rocLabel <- -1
+    }
+  })
+
+  return(as.factor(rocResults))
+}
+
+ngp.model.Rocchio.RocchioVectorBuilder <- function(DF1, DF2) {
   alpha <- 16
   beta <- 4
 
@@ -17,15 +47,4 @@ ngp.model.rocchioVectorBuilder <- function(DF1, DF2) {
 }
 
 
-ngp.model.rocchioClassifer <- function(DF.row, vector1, vector2) {
-  r1 <- sum(vector1 * DF.row)
-  r2 <- sum(vector2 * DF.row)
 
-  if (r1 >= r2) {
-    rocLabel <- 1
-  } else {
-    rocLabel <- -1
-  }
-
-  return(rocLabel)
-}
