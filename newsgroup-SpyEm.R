@@ -21,9 +21,13 @@ ngp.model.Spy_EM <- function (ngp.dtm, ngp.class) {
 
 
   RN <- ngp.model.Spy_EM.FindRN(ngp.dtm, ngp.class)
+  utils.cat(paste("        Spy_EM.FindRN:  thread #", var.j, ", 6.1\n", sep=""))
   ngp.class$RN <- 0
-  ngp.class[RN, ]$RN <- -1
-
+  if (length(RN) > 0) {
+    ngp.class[RN, ]$RN <- -1
+  }
+  
+  utils.cat(paste("        Spy_EM.FindRN:  thread #", var.j, ", 6.2\n", sep=""))
   model.Spy_EM <- ngp.model.Spy_EM.BuildModel(ngp.dtm, ngp.class)
 
   return(model.Spy_EM)
@@ -51,7 +55,7 @@ ngp.model.Spy_EM.FindRN <- function (ngp.dtm, ngp.class) {
 
   ##############################################
   ####    Naive-Bayes iterations
-  nBayes.model <- naiveBayes(ngp.dtm, ngp.class$predict, laplace=0.15)
+  nBayes.model <- naiveBayes(ngp.dtm, ngp.class$predict, laplace=0.1)
   US.predict <- predict(nBayes.model, ngp.dtm[US, ])
   var.iter <- 1
   var.iter.values <- c(0, 0, 0)
@@ -64,7 +68,9 @@ ngp.model.Spy_EM.FindRN <- function (ngp.dtm, ngp.class) {
     nBayes.model <- naiveBayes(ngp.dtm, ngp.class$predict, laplace=0.1)
     US.predict <- predict(nBayes.model, ngp.dtm[US, ])
     var.iter <- var.iter + 1
-
+    
+    utils.cat(paste("        Spy_EM.FindRN:  thread #", var.j, ", 5  US-neg:", length(US.predict[-1]), "\n", sep=""))
+    
     ## Stopping condition
     if (identical(ngp.class[US, ]$predict, US.predict)) {
       break
@@ -76,7 +82,7 @@ ngp.model.Spy_EM.FindRN <- function (ngp.dtm, ngp.class) {
 
       ## If the number of different predictions between last 3 iterations is less than 10%, we can assume that it has converged
       # print(var.iter.values)
-      var.maxDiff <- ceiling(max(var.iter.values) / 10)
+      var.maxDiff <- ceiling(min(var.iter.values) / 10)
       if (!(0 %in% var.iter.values)
           & (var.iter.values[3] - var.iter.values[2] < var.maxDiff)
           & (var.iter.values[2] - var.iter.values[1] < var.maxDiff)) {
@@ -88,15 +94,22 @@ ngp.model.Spy_EM.FindRN <- function (ngp.dtm, ngp.class) {
 
   ## Run final mode on PS and US to get Probability
   spies.predict <- predict(nBayes.model, ngp.dtm[US.spies, ], type='raw')
+  utils.cat(paste("        Spy_EM.FindRN:  thread #", var.j, ", 1\n", sep=""))
   US.predict <- predict(nBayes.model, ngp.dtm[US, ], type='raw')
+  utils.cat(paste("        Spy_EM.FindRN:  thread #", var.j, ", 2\n", sep=""))
 
   ## Extract RN and mark it in ngp.class
   ## TODO: Find out why threshold is zero
   # threshold <- min(spies.predict[which(spies.predict[, "1"] != 0), "1"])
   threshold <- min(spies.predict[, "1"])
+  utils.cat(paste("        Spy_EM.FindRN:  thread #", var.j, ", 3\n", sep=""))
 
+  ##  DONGWEI: subscript out of bounds
+  ## RN had 1091 docs, vs total US of 1090
   temp <- which(US.predict[, "1"] < threshold | US.predict[, "1"] == 0)
+  utils.cat(paste("        Spy_EM.FindRN:  thread #", var.j, ", 4\n", sep=""))
   RN <- rownames((ngp.class[US, ])[temp, ])
+  utils.cat(paste("        Spy_EM.FindRN:  thread #", var.j, ", 5  RN:", length(RN), "\n", sep=""))
 
   return(RN)
 }
@@ -105,14 +118,21 @@ ngp.model.Spy_EM.FindRN <- function (ngp.dtm, ngp.class) {
 ngp.model.Spy_EM.BuildModel <- function (ngp.dtm, ngp.class) {
 
   ## Move spies back into PS
+  utils.cat(paste("        Spy_EM.BuildModel:  thread #", var.j, ", 7\n", sep=""))
   US.spies <- rownames(ngp.class[ngp.class$isSpy == TRUE, ])
   ngp.class[US.spies, ]$label <- 1
   PS <- rownames(ngp.class[ngp.class$label == 1, ])
   US <- rownames(ngp.class[ngp.class$label == -1, ])
   RN <- rownames(ngp.class[ngp.class$label == -1 & ngp.class$RN == -1, ])
-
-  ## QS = US = RN
-  QS <- US [! US %in% RN]
+  
+  utils.cat(paste("        Spy_EM.BuildModel:  thread #", var.j, ", 8\n", sep=""))
+  ## QS = US - RN
+  if (length(RN) > 0) {
+    QS <- US [! US %in% RN]
+  } else {
+    QS <- US
+  }
+  utils.cat(paste("        Spy_EM.BuildModel:  thread #", var.j, ", 9\n", sep=""))
 
   ## Set for iterations
   ngp.class$predict <- -1
