@@ -1,7 +1,7 @@
 # install.packages(
 #   c("tm", "tm.plugin.mail",
-#     "e1071", "SnowballC", "caret",
-#     "parallel", "doParallel", "foreach","snow",
+#     "e1071", "SnowballC", "caret", "ineq",
+#     "parallel", "doParallel", "foreach", "snow",
 #     "beepr"))
 
 rm(list=ls())
@@ -12,6 +12,7 @@ library(tm.plugin.mail)
 library(e1071)
 library(SnowballC)
 library(caret)
+library(ineq)
 
 ## Parallel libraries
 library(parallel)
@@ -35,7 +36,9 @@ source("newsgroup-utils-perf.R")
 source("newsgroup-utils-functions.R")
 
 source("newsgroup-SpyEM.R")
+source("newsgroup-Rocchio.R")
 source("newsgroup-RocchioSVM.R")
+source("newsgroup-KMeans.R")
 
 
 
@@ -63,25 +66,33 @@ dir.all <- c("alt.atheism",              "comp.graphics",
              "talk.politics.guns",       "talk.politics.mideast",
              "talk.politics.misc",       "talk.religion.misc")
 
-## TODO: Select directories to use
-# dir.selected <- dir.all
-dir.selected <- c( "comp.os.ms-windows.misc",  #"comp.windows.x",
-                   "alt.atheism",              #"sci.med",
-                   "sci.space",                #"soc.religion.christian",
-                   "talk.politics.guns")#,       "talk.politics.mideast")
-                   
-## TODO: Set positive classes
-# dir.positive <- c( "comp.graphics",
-#                    "comp.os.ms-windows.misc",  "comp.sys.ibm.pc.hardware",
-#                    "comp.sys.mac.hardware",    "comp.windows.x")
-dir.positive <- c( "comp.os.ms-windows.misc",  "comp.windows.x")
+dir.selected <- dir.all
+dir.positive <- c( "comp.graphics",
+                   "comp.os.ms-windows.misc",  "comp.sys.ibm.pc.hardware",
+                   "comp.sys.mac.hardware",    "comp.windows.x")
+
+
+## TODO: For debugging
+# dir.positive <- c("comp.os.ms-windows.misc", "comp.windows.x", "comp.sys.mac.hardware")
+# dir.selected <- c("comp.os.ms-windows.misc", "comp.windows.x", "comp.sys.mac.hardware",
+#                   "rec.sport.baseball", "rec.sport.hockey",
+#                   "alt.atheism", "sci.space", "soc.religion.christian",
+#                   "talk.politics.guns",       "talk.politics.mideast",
+#                   "talk.politics.misc",       "talk.religion.misc")
+dir.positive <- c("comp.os.ms-windows.misc", "comp.windows.x")
+dir.selected <- c("comp.os.ms-windows.misc", "comp.windows.x", 
+                  "rec.sport.baseball", "rec.sport.hockey",
+                  "alt.atheism", "sci.space")
 
 
 ## Read to corpus, convert into DTM and clean it
 ## TODO: Set data folder in "newsgroup-utils-corpus.R/utils-prepCorpus"
 # Non-parallel code: ngp.data <- utils.prepCorpora(dir.selected)
 ngp.data <- utils.prepCorpora.parallel(parallel.cluster, dir.selected)
-ngp.dtm  <- utils.createDtmFromCorpora(ngp.data, 35)
+
+# TODO: Set to 35 for actual run
+# ngp.dtm  <- utils.createDtmFromCorpora(ngp.data, 35)
+ngp.dtm  <- utils.createDtmFromCorpora(ngp.data, 20)
 
 ## Parallel initiated in utils.prepCorpora
 stopCluster(parallel.cluster)
@@ -106,7 +117,7 @@ rm(ngp.data, ngp.dtm, ngp.dtm.index, parallel.cluster)
 
 timer.readNewsgroup <- proc.time() - timer.start
 beepr::beep(1)
-cat("Read data completed, starting loop")
+cat("Read data completed, starting loop\n")
 
 
 
@@ -117,137 +128,11 @@ cat("Read data completed, starting loop")
 ####    This will run on the parallel loop below
 ##############################################
 trnLabeled <- c(0.10, 0.20, 0.40, 0.65)
-var.i <- 4
+var.i <- 1
 var.j <- 1
 
-ngp.sampling <- function
-    (ngp.PS, ngp.NS, ngp.class, ngp.output, trnLabeled, var.i) {
-
-  utils.cat(paste("TrnPct", trnLabeled[var.i], " |  Sample", var.j, "of 10\n"))
-  ## Split for training/testing sets, 60% of data to be set as training
-  temp <- sample(1:nrow(ngp.PS), 0.6 * nrow(ngp.PS), replace = FALSE)
-  ngp.trn.PS <- ngp.PS[temp, ]
-  ngp.tst <- ngp.PS[-temp, ]
-
-  temp <- sample(1:nrow(ngp.NS), 0.6 * nrow(ngp.NS), replace = FALSE)
-  ngp.trn.NS <- ngp.NS[temp, ]
-  ngp.tst <- c(ngp.tst, ngp.NS[-temp, ])
-
-  ## Check for train/test split
-  stopifnot(nrow(ngp.trn.PS) + nrow(ngp.trn.NS) + nrow(ngp.tst)
-            == nrow(ngp.PS) + nrow(ngp.NS))
-
-
-
-  ## Split for labeled data and unlabeled data
-  temp <- sample(
-  		  1:nrow(ngp.trn.PS),
-  		  ceiling(trnLabeled[var.i] * nrow(ngp.trn.PS)),
-  		  replace = FALSE)
-  ngp.trn.US <- c(ngp.trn.PS[-temp, ], ngp.trn.NS)  # Move unlabeled PS into US
-  ngp.trn.PS <- ngp.trn.PS[temp, ]                  # Remove unlabeled PS from the set
-  rm(ngp.trn.NS)
-
-  ## Check for labeled/unlabeled split
-  stopifnot(nrow(ngp.trn.PS) + nrow(ngp.trn.US) + nrow(ngp.tst)
-            == nrow(ngp.PS) + nrow(ngp.NS))
-
-
-
-  ## Mark labeled training data in data frame
-  ngp.trn.class <- ngp.class[c(rownames(ngp.trn.PS), rownames(ngp.trn.US)), ]
-  ngp.trn.class["isLabeled"] <- FALSE
-  ngp.trn.class["label"] <- -1
-  ngp.trn.class[rownames(ngp.trn.PS), ]$isLabeled <- TRUE
-  ngp.trn.class[rownames(ngp.trn.PS), ]$label <- 1
-  ngp.trn.class$label <- as.factor(ngp.trn.class$label)
-
-  ## Convert to matrix
-  ngp.trn <- c(ngp.trn.PS, ngp.trn.US)
-  ngp.trnMatrix <- as.matrix(ngp.trn)
-
-  ## Arrange by document ID, check IDs are correct
-  ngp.trnMatrix <- ngp.trnMatrix[order(rownames(ngp.trnMatrix)), ]
-  ngp.trn.class <- ngp.trn.class[order(rownames(ngp.trn.class)), ]
-  stopifnot(rownames(ngp.trnMatrix) == rownames(ngp.trn.class))
-
-
-  ## Repeat matrix + class for testing data
-  ngp.tstMatrix <- as.matrix(ngp.tst)
-  ngp.tstMatrix <- ngp.tstMatrix[order(rownames(ngp.tstMatrix)), ]
-  ngp.tst.class <- ngp.class[rownames(ngp.tst), ]
-  ngp.tst.class <- ngp.tst.class[order(rownames(ngp.tst.class)), ]
-
-  ## Creating folds for 10-fold cross validation used later
-  ngp.tst.class$fold <- createFolds(rownames(ngp.tst.class), k = 10, list = FALSE, returnTrain = FALSE)
-
-
-
-
-
-  ##############################################
-  ####    Build Models
-  utils.cat(paste("    Building Models: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-
-
-  # utils.cat(paste("        Start naiveBayes: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-  # models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
-
-  utils.cat(paste("        Start SpyEM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-  models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
-
-  # utils.cat(paste("        Start RocSVM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-  # models.RocSVM <- ngp.model.RocchioSVM(ngp.trnMatrix, ngp.trn.class)
-
-
-
-  ################################################
-  ## Run the models on test data
-  utils.cat(paste("    Predicting: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-  # results.nBayes <- predict(models.nBayes, ngp.tstMatrix)
-  results.Spy_EM <- predict(models.Spy_EM, ngp.tstMatrix)
-  # results.RocSVM <- predict(models.RocSVM, ngp.tstMatrix)
-
-  # TODO: Remove fake stand-in for actual
-  results.nBayes <- as.factor(rep(1, nrow(ngp.tstMatrix)))
-  # results.Spy_EM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
-  # results.RocSVM <- as.factor(rep(1, nrow(ngp.tstMatrix)))
-
-
-
-
-  ################################################
-  ## Calculating performance
-  utils.cat(paste("    Calculating Performance: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-
-  ## Calculate performance for each fold
-  for (i in 1:10) {
-    if (i == 1) {
-      ngp.output[which(ngp.output == -1)] <- 0
-    }
-
-    ## Naive-Bayes
-    ngp.tst.class$predict <- utils.convertFactorToNumeric(results.nBayes)
-    ngp.output["fmeasure", "nBayes"] <- ngp.output["fmeasure", "nBayes"] + utils.calculateFMeasure(ngp.tst.class[ngp.tst.class$fold == i, ])
-    ngp.output["accuracy", "nBayes"] <- ngp.output["accuracy", "nBayes"] + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
-
-    ## Spy-EM
-    ngp.tst.class$predict <- utils.convertFactorToNumeric(results.Spy_EM)
-    ngp.output["fmeasure", "Spy-EM"] <- ngp.output["fmeasure", "Spy-EM"] + utils.calculateFMeasure(ngp.tst.class[ngp.tst.class$fold == i, ])
-    ngp.output["accuracy", "Spy-EM"] <- ngp.output["accuracy", "Spy-EM"] + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
-  
-    ## RocSVM
-    ngp.tst.class$predict <- utils.convertFactorToNumeric(results.RocSVM)
-    ngp.output["fmeasure", "RocSVM"] <- ngp.output["fmeasure", "RocSVM"] + utils.calculateFMeasure(ngp.tst.class[ngp.tst.class$fold == i, ])
-    ngp.output["accuracy", "RocSVM"] <- ngp.output["accuracy", "RocSVM"] + utils.calculateAccuracy(ngp.tst.class[ngp.tst.class$fold == i, ])
-  }
-
-  ## Average results over 10 folds
-  ngp.output <- ngp.output / 10
-
-  utils.cat(paste("    Returning: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-  return(ngp.output)
-}
+## Moved to separate file
+source("newsgroup-mainfunction.R")
 
 
 
@@ -258,20 +143,25 @@ ngp.sampling <- function
 ##############################################
 ## Percentage of training data to be set as labeled
 # TODO: Set correct values after code is stable
+trnLabeled <- c(0.10, 0.15, 0.25, 0.35, 0.50, 0.65)
+trnLabeled <- c(0.10, 0.15, 0.25)
 # trnLabeled <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.65)
-trnLabeled <- c(0.10, 0.20, 0.40, 0.65)
-# trnLabeled <- c(0.30, 0.65)
 
-# TODO: Set to 10 for actual run
-repSamples <- 3
+## Set reps in multiples of cores for maximize processing time
+## If you have 3 cores, repSamples should be 3/6/9/12
+repSamples <- 9
 
-namesOfClassifiers <- c("nBayes", "Spy-EM", "RocSVM")
+namesOfClassifiers <- c("AllPos", 
+                        "nBayes", "SVM", "Rocchio", 
+                        "Spy-EM", "RocSVM", "KMeans")
 numberOfClassifiers <- length(namesOfClassifiers)
 
 
 
+
+
 ## Build matrix to store overall results
-ngp.fmeasure.results <- matrix(rep(-1, numberOfClassifiers * length(trnLabeled)),
+ngp.fmeasure.results <- matrix(rep(0, numberOfClassifiers * length(trnLabeled)),
                                length(trnLabeled))
 rownames(ngp.fmeasure.results) <- trnLabeled
 colnames(ngp.fmeasure.results) <- namesOfClassifiers
@@ -279,27 +169,27 @@ ngp.accuracy.results <- ngp.fmeasure.results
 
 ## Vary % of data that is labeled data
 for (var.i in 1:length(trnLabeled)) {
+  
+  print(paste("---------- TrnPercent:", trnLabeled[var.i], "----------"))
 
   ## Build a row of of the results, for ngp.sampling to return
-  ngp.sampling.output.row <- matrix(rep(-1, numberOfClassifiers*2), nrow=2)
+  ngp.sampling.output.row <- matrix(rep(0, numberOfClassifiers*2), nrow=2)
 	colnames(ngp.sampling.output.row) <- namesOfClassifiers
 	rownames(ngp.sampling.output.row) <- c("fmeasure", "accuracy")
 
-	
 	## Set up cluster for parallel
 	parallel.cluster <- utils.createParallelCluster()
 	registerDoParallel(parallel.cluster)
 
 	##############################################
-  #### Repeat sampling 10 times to avoid sampling bias
+  #### Repeat sampling 9 times to avoid sampling bias
   ngp.sampling.results <- foreach(var.j = 1:repSamples,
-          .packages = c("tm", "e1071", "SnowballC", "caret")) %dopar% ngp.sampling(
+          .packages = c("tm", "e1071", "SnowballC", "caret", "ineq")) %dopar% ngp.sampling(
             ngp.PS, ngp.NS, ngp.class, ngp.sampling.output.row, trnLabeled, var.i)
   ##############################################
   print(ngp.sampling.results)
-	
-	## Stop cluster after 1 for-each
-	## Prevents/reduces crashes
+
+	## Reset cluster for parallel. Prevents crashing.
 	stopCluster(parallel.cluster)
 
 
@@ -316,7 +206,7 @@ for (var.i in 1:length(trnLabeled)) {
 
   ## Calculate mean
   ngp.fmeasure.results[var.i, ] <- ngp.sampling.fmeasure / repSamples
-  ngp.accuracy.results[var.i, ] <- ngp.sampling.fmeasure / repSamples
+  ngp.accuracy.results[var.i, ] <- ngp.sampling.accuracy / repSamples
 
   beepr::beep(1)
 }
@@ -333,3 +223,5 @@ save.image("newsgroup-results.RData")
 utils.plotGraph(ngp.fmeasure.results, "F-Measure")
 utils.plotGraph(ngp.accuracy.results, "Accuracy")
 timer.total <- proc.time() - timer.start
+
+# utils.plotGraph(ngp.fmeasure.results[,c("AllPos", "nBayes", "SVM", "Rocchio", "Spy-EM", "RocSVM")], "F-Measure") 

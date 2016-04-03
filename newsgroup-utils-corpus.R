@@ -14,7 +14,7 @@ utils.prepCorpora.parallel <- function(cluster, dirVector) {
                c(library(tm), library(tm.plugin.mail), library(parallel)))
 
   corpora <- parLapply(cluster, dirVector, function(dirName) {
-source("newsgroup-utils-functions.R")
+    source("newsgroup-utils-functions.R")
     utils.cat(paste("Reading docs from ", dirName, "\n", sep=""))
     return(utils.prepCorpus(dirName))
   })

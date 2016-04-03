@@ -14,7 +14,7 @@ utils.convertFactorToNumeric <- function(factor) {
 
 utils.plotGraph <- function(ngp.results, nameOfGraph) {
   xrange <- range(rownames(ngp.results))
-  yrange <- range(c(0.3, 1))
+  yrange <- range(c(min(ngp.results), max(ngp.results)))
 
   plot(xrange, yrange, type = "n", xlab = "% of training set", ylab=nameOfGraph)
   colors <- rainbow(ncol(ngp.results))
