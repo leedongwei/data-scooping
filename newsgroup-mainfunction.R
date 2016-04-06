@@ -70,27 +70,27 @@ ngp.sampling <- function
   ####    Build Models
   utils.cat(paste("    Building Models: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
   
-#   utils.cat(paste("        Start naiveBayes: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-#   models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
-# 
-#   utils.cat(paste("        Start SVM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-#   models.SVM <- svm(x=ngp.trnMatrix, 
-#                     y=ngp.trn.class$label, 
-#                     type="C-classification",
-#                     kernel="linear",
-#                     cachesize=256)
-#   
-#   utils.cat(paste("        Start Rocchio: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-#   models.Rocchio <- ngp.model.Rocchio(ngp.trnMatrix, ngp.trn.class)
-#   
+  utils.cat(paste("        Start naiveBayes: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  models.nBayes <- naiveBayes(ngp.trnMatrix, ngp.trn.class$label, laplace = 0.1)
+
+  utils.cat(paste("        Start SVM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  models.SVM <- svm(x=ngp.trnMatrix, 
+                    y=ngp.trn.class$label, 
+                    type="C-classification",
+                    kernel="linear",
+                    cachesize=256)
+  
+  utils.cat(paste("        Start Rocchio: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  models.Rocchio <- ngp.model.Rocchio(ngp.trnMatrix, ngp.trn.class)
+  
 #   utils.cat(paste("        Start SpyEM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
 #   models.Spy_EM <- ngp.model.Spy_EM(ngp.trnMatrix, ngp.trn.class)
-#   
-#   utils.cat(paste("        Start RocSVM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-#   models.RocSVM <- ngp.model.RocchioSVM(ngp.trnMatrix, ngp.trn.class)
+  
+  utils.cat(paste("        Start RocSVM: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+  models.RocSVM <- ngp.model.RocchioSVM(ngp.trnMatrix, ngp.trn.class)
 
-  utils.cat(paste("        Start KMeans: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
-  models.KMeans <- ngp.model.KMeans(ngp.trnMatrix, ngp.trn.class, 2, 3)
+#   utils.cat(paste("        Start KMeans: ", trnLabeled[var.i], "% / sample", var.j, "\n", sep=""))
+#   models.KMeans <- ngp.model.KMeans(ngp.trnMatrix, ngp.trn.class, 2, 3)
   
   
   
@@ -109,12 +109,12 @@ ngp.sampling <- function
   results.KMeans  <- as.factor(rep(1, nrow(ngp.tstMatrix)))
   
   ## Actual prediction
-  # results.nBayes  <- predict(models.nBayes, ngp.tstMatrix)
-  # results.SVM     <- predict(models.SVM, ngp.tstMatrix)
-  # results.Rocchio <- ngp.model.RocchioClassifer(models.Rocchio, ngp.tstMatrix)
+  results.nBayes  <- predict(models.nBayes, ngp.tstMatrix)
+  results.SVM     <- predict(models.SVM, ngp.tstMatrix)
+  results.Rocchio <- ngp.model.RocchioClassifer(models.Rocchio, ngp.tstMatrix)
   # results.Spy_EM  <- predict(models.Spy_EM, ngp.tstMatrix)
-  # results.RocSVM  <- predict(models.RocSVM, ngp.tstMatrix)
-  results.KMeans  <- ngp.model.KMeans.predict(models.KMeans, ngp.tstMatrix)
+  results.RocSVM  <- predict(models.RocSVM, ngp.tstMatrix)
+  # results.KMeans  <- ngp.model.KMeans.predict(models.KMeans, ngp.tstMatrix)
   
   
   

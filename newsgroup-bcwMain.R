@@ -52,71 +52,44 @@ source("newsgroup-KMeans.R")
 ####    Start of code
 ##############################################
 # file.remove("newsgroup-output.txt")
-timer.start <- proc.time()
-parallel.cluster <- utils.createParallelCluster()
 
-dir.all <- c("alt.atheism",              "comp.graphics",
-             "comp.os.ms-windows.misc",  "comp.sys.ibm.pc.hardware",
-             "comp.sys.mac.hardware",    "comp.windows.x",
-             "misc.forsale",             "rec.autos",
-             "rec.motorcycles",          "rec.sport.baseball",
-             "rec.sport.hockey",         "sci.crypt",
-             "sci.electronics",          "sci.med",
-             "sci.space",                "soc.religion.christian",
-             "talk.politics.guns",       "talk.politics.mideast",
-             "talk.politics.misc",       "talk.religion.misc")
-
-dir.selected <- dir.all
-dir.positive <- c( "comp.graphics",
-                   "comp.os.ms-windows.misc",  "comp.sys.ibm.pc.hardware",
-                   "comp.sys.mac.hardware",    "comp.windows.x")
+bcw <- read.table("data/breast-cancer-wisconsin/breast-cancer-wisconsin.data", sep=",")
+bcw.headers <- c("id", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "class")
+bcw.features <- c("V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9")
+names(bcw) <- bcw.headers
 
 
-## TODO: For debugging
-dir.positive <- c("comp.os.ms-windows.misc", "comp.windows.x", "comp.sys.mac.hardware")
-dir.selected <- c("comp.os.ms-windows.misc", "comp.windows.x", "comp.sys.mac.hardware",
-                  "rec.sport.baseball", "rec.sport.hockey",
-                  "alt.atheism", "sci.space", "soc.religion.christian",
-                  "talk.politics.guns",       "talk.politics.mideast",
-                  "talk.politics.misc",       "talk.religion.misc")
-# dir.positive <- c("comp.os.ms-windows.misc", "comp.windows.x")
-# dir.selected <- c("comp.os.ms-windows.misc", "comp.windows.x", 
-#                   "rec.sport.baseball", "rec.sport.hockey",
-#                   "alt.atheism", "sci.space")
+## bcw has non-unique patient IDs
+## We will replace all IDs to ensure uniqueness
+rownames(bcw) <- paste("D", 1:length(bcw$id), sep="")
+
+## bcw$V6 has missing values
+## We will replace them with the mean of V6
+index <- which(bcw$V6 %in% "?")
+
+## Convert factor to numeric to find mean
+bcw$V6 <- as.numeric(levels(bcw$V6))[bcw$V6]
+V6.mean <- floor(sum(bcw$V6, na.rm=TRUE) / length(bcw$V6))
+
+## Replace missing V6 values with mean
+bcw$V6[index] <- V6.mean
+bcw$V6 <- as.integer(bcw$V6)
+rm(V6.mean)
 
 
-## Read to corpus, convert into DTM and clean it
-## TODO: Set data folder in "newsgroup-utils-corpus.R/utils-prepCorpus"
-# Non-parallel code: ngp.data <- utils.prepCorpora(dir.selected)
-ngp.data <- utils.prepCorpora.parallel(parallel.cluster, dir.selected)
-
-# TODO: Set to 35 for actual run
-# ngp.dtm  <- utils.createDtmFromCorpora(ngp.data, 35)
-ngp.dtm  <- utils.createDtmFromCorpora(ngp.data, 25)
-
-## Parallel initiated in utils.prepCorpora
-stopCluster(parallel.cluster)
-
-## Reset document ID and extract class names
-ngp.class <- utils.extractDtmClasses(ngp.dtm)
-ngp.dtm <- utils.resetDtmDocNames(ngp.dtm)
-
-## Split into Positive and Negative
-ngp.dtm.index <- utils.getDocsIdForClass(ngp.dtm, ngp.class, dir.positive)
-ngp.PS <- ngp.dtm[ngp.dtm.index, ]
-ngp.NS <- ngp.dtm[!(rownames(ngp.dtm) %in% ngp.dtm.index), ]
-
-## Mark Positive data in class
-ngp.class["class"] <- -1
-ngp.class[rownames(ngp.PS), ]$class <- 1
-
-##  Check, then clean up env
-stopifnot(nrow(ngp.PS) + nrow(ngp.NS) == nrow(ngp.dtm))
-rm(ngp.data, ngp.dtm, ngp.dtm.index, parallel.cluster)
+ngp.PS <- bcw[bcw$class == 4, ]
+ngp.NS <- bcw[bcw$class == 2, ]
+ngp.PS$class <- NULL
+ngp.PS$id <- NULL
+ngp.NS$class <- NULL
+ngp.NS$id <- NULL
 
 
-timer.readNewsgroup <- proc.time() - timer.start
-beepr::beep(1)
+ngp.class <- bcw[ ,c("id", "class")]
+ngp.class[ngp.class$class == 4, ]$class <- 1
+ngp.class[ngp.class$class == 2, ]$class <- -1
+ngp.class$class <- as.factor(ngp.class$class)
+
 cat("Read data completed, starting loop\n")
 
 

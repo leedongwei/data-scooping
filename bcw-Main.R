@@ -37,7 +37,6 @@ source("bcw-LELC.R")
 
 ##    Utilities
 source("bcw-utils-perf.R")
-source("bcw-utils-CalculateAccuracy.R")
 
 
 
@@ -56,7 +55,7 @@ names(bcw) <- bcw.headers
 
 ## bcw has non-unique patient IDs
 ## We will replace all IDs to ensure uniqueness
-bcw$id <- 1:length(bcw$id)
+rownames(bcw) <- paste("D", 1:length(bcw$id), sep="")
 
 
 ## bcw$V6 has missing values
@@ -96,8 +95,7 @@ registerDoParallel(parallel.cluster)
 ####    Start testing here
 
 
-# trnPercent <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.45, 0.55, 0.65)
-trnPercent <- c(0.05, 0.10, 0.55, 0.65)
+trnPercent <- c(0.10, 0.15, 0.25, 0.35, 0.50, 0.65)
 
 
 ## Set up data storage for F-measure and Accuracy

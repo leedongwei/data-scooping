@@ -143,7 +143,7 @@ ngp.model.KMeans.predict <- function (ngp.model, ngp.dtm) {
   ngp.trnDtm <- ngp.model[[2]]
   ngp.class <- ngp.model[[3]]
   
-  utils.cat(paste("        KMeans.predict:  thread #", var.j, " 1\n", sep=""))
+  utils.cat(paste("        KMeans.predict:  thread #", var.j, "\n", sep=""))
   
   ## Identify positive cluster
   cluster.Pcount <- apply(as.matrix(1:nrow(cluster.centers)), 1, function(i) {
@@ -172,6 +172,9 @@ ngp.model.KMeans.predict <- function (ngp.model, ngp.dtm) {
   docs.predict <- apply(as.matrix(docs.all), 1, function(x) {
     dist.centers <- apply(cluster.centers, 1, function(u) {
       distance <- sum((ngp.dtm[x, ] - u)^2)
+      
+      #TODO: Dongwei consider impurity on test document
+      distance <- distance + distance * Imp
     })
     return(which.min(dist.centers))
   })
